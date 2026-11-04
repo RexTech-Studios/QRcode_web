@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "184985262176",
+    "project_id": "qrcode-16b68",
+    "storage_bucket": "qrcode-16b68.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:184985262176:android:ce3ce9c9fc4a7ca3058b05",
+        "android_client_info": {
+          "package_name": "com.rextech.reviewqr_admin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXoK8MW872X3jcGavkM26KIW9NuWYtOAw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,41 @@
+rules_version = '2';
+
+// NOTE: this app still has no Firebase Auth, so shops/qr_codes stay fully
+// open (read/write: if true) to keep the admin app working without a login
+// screen. That is a known, deliberate gap, not an oversight -- add Firebase
+// Auth and gate those writes on it before this is treated as fully
+// production-secure.
+//
+// The one piece locked down here is the public `feedback` collection, since
+// it's the only thing an anonymous customer writes to: submissions must look
+// like real review data (bounded rating, bounded comment, correct types),
+// and once written a document can never be edited or deleted by a client --
+// only Cloud Functions / the console can touch it after creation.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /shops/{shopId} {
+      allow read, write: if true;
+    }
+
+    match /qr_codes/{qrId} {
+      allow read, write: if true;
+    }
+
+    match /feedback/{feedbackId} {
+      allow read: if true;
+      allow create: if isValidFeedback(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    function isValidFeedback(data) {
+      return data.keys().hasAll(['shopId', 'rating', 'createdAt', 'emailNotificationStatus'])
+        && data.shopId is string
+        && data.shopId.size() > 0
+        && data.rating is int
+        && data.rating >= 1
+        && data.rating <= 5
+        && (!('comment' in data) || data.comment == null || (data.comment is string && data.comment.size() <= 250))
+        && data.emailNotificationStatus is string;
+    }
+  }
+}
