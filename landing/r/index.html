@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+  (function () {
+    var match = /^\/r\/([A-Za-z0-9-]{8,64})\/?$/.exec(location.pathname);
+    location.replace(match ? '/app/#/review/' + match[1] : '/');
+  })();
+</script>
+<meta name="robots" content="noindex">
+<title>Opening... | Full Star QR</title>
+<style>
+  html, body { height: 100%; margin: 0; background: #FFFDF8; }
+  body {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    color: #8B6A3A; font: 500 15px/1.5 Georgia, 'Times New Roman', serif; letter-spacing: 1px;
+  }
+  a { color: #1B1816; }
+</style>
+</head>
+<body>
+<p>Opening...</p>
+<noscript><a href="/">Go to Full Star QR</a></noscript>
+</body>
+</html>
