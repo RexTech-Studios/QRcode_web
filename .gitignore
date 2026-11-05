@@ -58,3 +58,6 @@ serviceAccountKey*.json
 
 # Combined hosting output
 dist/
+
+# Local design source files, never committed
+design-reference/
