@@ -46,7 +46,7 @@ class ExportService {
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(32),
         header: (_) => pw.Text(
-          'ReviewQR — Data Export  •  ${_readableDate(DateTime.now())}',
+          'Full Star QR — Data Export  •  ${_readableDate(DateTime.now())}',
           style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
         ),
         build: (ctx) => [

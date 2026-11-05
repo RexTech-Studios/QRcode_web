@@ -68,7 +68,7 @@ class ReviewQrAdminApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'ReviewQR Admin',
+        title: 'Full Star QR Admin',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         // No `home:` here — onGenerateInitialRoutes below owns the initial

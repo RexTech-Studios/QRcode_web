@@ -288,7 +288,7 @@ class _Brand extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         const Text(
-          'ReviewQR',
+          'Full Star QR',
           style: TextStyle(
             fontSize: 19,
             fontWeight: FontWeight.w800,

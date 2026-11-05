@@ -136,24 +136,27 @@ class _SplashScreenState extends State<SplashScreen>
                         opacity: _iv(0.25, 0.70, Curves.easeIn),
                         child: child,
                       ),
-                      child: RichText(
-                        text: const TextSpan(
-                          style: TextStyle(
-                            fontSize: 56,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -1.8,
-                            height: 1.0,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: RichText(
+                          text: const TextSpan(
+                            style: TextStyle(
+                              fontSize: 56,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -1.8,
+                              height: 1.0,
+                            ),
+                            children: [
+                              TextSpan(
+                                text: 'Full Star ',
+                                style: TextStyle(color: Color(0xFF18214D)),
+                              ),
+                              TextSpan(
+                                text: 'QR',
+                                style: TextStyle(color: Color(0xFF16A34A)),
+                              ),
+                            ],
                           ),
-                          children: [
-                            TextSpan(
-                              text: 'Review',
-                              style: TextStyle(color: Color(0xFF18214D)),
-                            ),
-                            TextSpan(
-                              text: 'QR',
-                              style: TextStyle(color: Color(0xFF16A34A)),
-                            ),
-                          ],
                         ),
                       ),
                     ),
