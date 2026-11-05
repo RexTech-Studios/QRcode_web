@@ -149,11 +149,22 @@ class _QrCodeCard extends StatelessWidget {
     }
   }
 
+  /// Minimum output resolution (in pixels, per side) for downloaded QR PNGs,
+  /// so codes stay crisp when enlarged or printed.
+  static const double _minExportSize = 2048;
+
   Future<void> _downloadQr(BuildContext context, GlobalKey key) async {
     final boundary =
         key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
     if (boundary == null) return;
-    final image = await boundary.toImage(pixelRatio: 3);
+    // Render at a pixel ratio high enough that the exported PNG is at least
+    // _minExportSize on its shortest side, regardless of the on-screen
+    // preview size, so the QR stays sharp when zoomed in or printed.
+    final shortestSide = boundary.size.shortestSide;
+    final pixelRatio = shortestSide > 0
+        ? (_minExportSize / shortestSide).clamp(1.0, 32.0)
+        : 8.0;
+    final image = await boundary.toImage(pixelRatio: pixelRatio);
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     if (byteData == null) return;
     final bytes = byteData.buffer.asUint8List();
