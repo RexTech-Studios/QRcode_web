@@ -11,8 +11,16 @@ class AppConfig {
   /// permanent redirect from the old URLs.
   static const String publicOrigin = 'https://qrcode-16b68.web.app';
 
+  /// Switches newly generated QR codes to the short fullstarqr.com link. Leave
+  /// false until DEPLOY_PHASE_1B.md says otherwise. Existing QR codes keep the
+  /// URL they were created with, so flipping this never affects them.
+  static const bool useNewDomain = false;
+
   /// Absolute URL of the customer review page for [shopId].
-  static String reviewUrl(String shopId) => '$publicOrigin/#/review/$shopId';
+  static String reviewUrl(String shopId, {bool newDomain = useNewDomain}) =>
+      newDomain
+      ? 'https://fullstarqr.com/r/$shopId'
+      : '$publicOrigin/#/review/$shopId';
 
   static bool isAdmin(String? uid) => uid == adminUid;
 }
