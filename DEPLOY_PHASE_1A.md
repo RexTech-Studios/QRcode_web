@@ -66,15 +66,11 @@ Until you press it, `notificationEmail` and `whatsappNumber` remain readable to 
 
 ## Rollback
 
-Redeploy the previous interim rules. They are on `main`, not this branch:
+Restore the previous rules from the Firebase console: Firestore Database > Rules, open the earlier version in the history panel, and publish it.
 
-```bash
-git show main:firestore.rules > firestore.rules
-firebase deploy --only firestore:rules
-git checkout phase-1a-auth-lockdown -- firestore.rules
-```
+Don't use `firestore.rules` from `main` for this. The rules that were live before this release had been changed outside git and block reading `feedback`, while the `main` copy lets anyone read it.
 
-The last line puts the phase 1a rules back in your working copy. A rollback reopens the database to everyone, so treat it as a short-term measure.
+A rollback reopens `shops` and `qr_codes` to everyone, so treat it as a short-term measure.
 
 The new site keeps working under the interim rules, because it still sends `emailNotificationStatus` (see below). To roll back the site as well, use Hosting > Release history > Rollback in the Firebase console.
 
