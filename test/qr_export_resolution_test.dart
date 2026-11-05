@@ -51,9 +51,14 @@ Future<Uint8List> _renderQr(WidgetTester tester, double boundarySize) async {
   final pixelRatio = shortestSide > 0
       ? (_minExportSize / shortestSide).clamp(1.0, 32.0)
       : 8.0;
-  final image = await boundary.toImage(pixelRatio: pixelRatio);
-  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-  return byteData!.buffer.asUint8List();
+  // Real async is required here: toByteData never completes under the fake
+  // clock testWidgets runs on, so without runAsync this test hangs forever.
+  final bytes = await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: pixelRatio);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
+  });
+  return bytes!;
 }
 
 void main() {
