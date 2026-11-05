@@ -71,8 +71,19 @@
 <link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="preload" href="/fonts/playfair-display-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="/fonts/poppins-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<script>
+  // Added by script, not as <link> tags, because the browser's preload scanner
+  // reads ahead of the parser and would fetch those even on a sticker scan.
+  ['playfair-display-latin-700-normal', 'poppins-latin-400-normal'].forEach(function (name) {
+    var link = document.createElement('link');
+    link.rel = 'preload';
+    link.as = 'font';
+    link.type = 'font/woff2';
+    link.crossOrigin = 'anonymous';
+    link.href = '/fonts/' + name + '.woff2';
+    document.head.appendChild(link);
+  });
+</script>
 <style>
   @font-face { font-family: 'Playfair Display'; font-weight: 700; font-display: swap; src: url(/fonts/playfair-display-latin-700-normal.woff2) format('woff2'); }
   @font-face { font-family: Poppins; font-weight: 400; font-display: swap; src: url(/fonts/poppins-latin-400-normal.woff2) format('woff2'); }
@@ -484,10 +495,19 @@
           <div class="stage">
             <div class="glow"></div>
             <div class="stand">
-              <picture>
-                <source type="image/webp" srcset="/assets/stand-600.webp 600w, /assets/stand-1200.webp 1200w" sizes="(min-width: 992px) 314px, (min-width: 400px) 206px, 177px">
-                <img src="/assets/stand-600.png" srcset="/assets/stand-600.png 600w, /assets/stand-1200.png 1200w" sizes="(min-width: 992px) 314px, (min-width: 400px) 206px, 177px" width="1200" height="1697" fetchpriority="high" alt="Full Star QR counter stand product design">
-              </picture>
+              <!-- In <noscript> so the preload scanner can't fetch it on a sticker
+                   scan. The script below inserts this same markup. -->
+              <noscript id="hero-stand">
+                <picture>
+                  <source type="image/webp" srcset="/assets/stand-600.webp 600w, /assets/stand-1200.webp 1200w" sizes="(min-width: 992px) 314px, (min-width: 400px) 206px, 177px">
+                  <img src="/assets/stand-600.png" srcset="/assets/stand-600.png 600w, /assets/stand-1200.png 1200w" sizes="(min-width: 992px) 314px, (min-width: 400px) 206px, 177px" width="1200" height="1697" fetchpriority="high" alt="Full Star QR counter stand product design">
+                </picture>
+              </noscript>
+              <script>
+                (function (fallback) {
+                  fallback.insertAdjacentHTML('afterend', fallback.textContent);
+                })(document.getElementById('hero-stand'));
+              </script>
             </div>
             <svg class="sparkle sparkle-a" aria-hidden="true"><use href="#i-sparkle"/></svg>
             <svg class="sparkle sparkle-b" aria-hidden="true"><use href="#i-sparkle"/></svg>

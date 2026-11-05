@@ -9,7 +9,7 @@
     ],
     "redirects": [
       {
-        "source": "/app",
+        "regex": "^/app$",
         "destination": "/app/",
         "type": 301
       }
@@ -47,6 +47,24 @@
       },
       {
         "source": "/index.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      },
+      {
+        "source": "/",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      },
+      {
+        "source": "/app/",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      },
+      {
+        "source": "/r/**",
         "headers": [
           { "key": "Cache-Control", "value": "no-cache" }
         ]

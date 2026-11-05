@@ -54,8 +54,17 @@ test('every image has alt text and explicit dimensions', () => {
   }
 });
 
-test('only the two critical fonts are preloaded', () => {
-  assert.equal(html.match(/rel="preload"/g).length, 2);
+test('only the two critical fonts are preloaded, and only from script', () => {
+  // A <link rel=preload> tag would be fetched by the preload scanner even on a
+  // sticker scan, before the shim has run.
+  assert.ok(!/<link[^>]*rel="preload"/.test(html));
+  const list = /\[('[a-z0-9-]+'(?:, '[a-z0-9-]+')*)\]\.forEach/.exec(html)[1];
+  assert.equal(list.split(',').length, 2);
+});
+
+test('the preload scanner cannot see any eager image', () => {
+  const visible = html.replace(/<noscript[\s\S]*?<\/noscript>/g, '');
+  for (const [img] of visible.matchAll(/<img[^>]*>/g)) assert.match(img, /loading="lazy"/);
 });
 
 test('there is no visible link to the app', () => {
