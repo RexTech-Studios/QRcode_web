@@ -5,6 +5,7 @@ import '../../providers/navigation_provider.dart';
 import '../../providers/qr_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../services/export_service.dart';
+import '../../services/firebase_service.dart';
 import '../../utils/app_colors.dart';
 import '../../widgets/section_card.dart';
 
@@ -284,6 +285,134 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 28),
+
+          // ── Maintenance ──────────────────────────────────────────────────
+          _SectionLabel('Maintenance'),
+          const SizedBox(height: 12),
+          const _LegacyFieldsCard(),
+        ],
+      ),
+    );
+  }
+}
+
+/// One-off manual cleanup of contact fields left on shop docs by the removed
+/// email feature. Runs only when pressed and confirmed, never automatically.
+class _LegacyFieldsCard extends StatefulWidget {
+  const _LegacyFieldsCard();
+
+  @override
+  State<_LegacyFieldsCard> createState() => _LegacyFieldsCardState();
+}
+
+class _LegacyFieldsCardState extends State<_LegacyFieldsCard> {
+  bool _busy = false;
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _start() async {
+    setState(() => _busy = true);
+    try {
+      final shopIds = await FirebaseService.fetchShopIdsWithLegacyFields();
+      if (!mounted) return;
+      if (shopIds == null) {
+        _showMessage('Could not check the shops. Check your connection and try again.');
+        return;
+      }
+      if (shopIds.isEmpty) {
+        _showMessage('Nothing to remove. No shop has these fields.');
+        return;
+      }
+
+      final confirmed = await _confirm(shopIds.length);
+      if (confirmed != true || !mounted) return;
+
+      final cleaned = await FirebaseService.removeLegacyContactFields(shopIds);
+      if (!mounted) return;
+      _showMessage(
+        cleaned == shopIds.length
+            ? 'Removed legacy contact fields from $cleaned shop(s).'
+            : 'Only $cleaned of ${shopIds.length} shop(s) were cleaned. Press the button again to finish.',
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<bool?> _confirm(int count) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Remove legacy contact fields?',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        content: Text(
+          '$count shop document(s) will change. This permanently deletes '
+          '${FirebaseService.legacyContactFields.join(', ')} from them and '
+          'touches nothing else. It cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Remove from $count shop(s)'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Remove legacy contact fields',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 3),
+          const Text(
+            'Deletes old email and WhatsApp fields from shop records. Shows how many shops will change before anything happens.',
+            style: TextStyle(
+              fontSize: 12.5,
+              color: AppColors.textSecondary,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 14),
+          OutlinedButton(
+            onPressed: _busy ? null : _start,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.danger,
+              side: const BorderSide(color: AppColors.danger),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            child: Text(_busy ? 'Working...' : 'Remove legacy contact fields'),
           ),
         ],
       ),

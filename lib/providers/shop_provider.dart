@@ -56,9 +56,6 @@ class ShopProvider extends ChangeNotifier {
     String? shopLogo,
     String? preferredShopId,
     String? editingShopId,
-    String? whatsappNumber,
-    String? notificationEmail,
-    bool? emailNotificationsEnabled,
     String? googleSheetsUrl,
   }) async {
     final editing = _shops.where((s) => s.shopId == editingShopId);
@@ -74,9 +71,6 @@ class ShopProvider extends ChangeNotifier {
           ..shopName = shopName.trim()
           ..googleReviewUrl = googleReviewUrl.trim()
           ..shopLogo = shopLogo ?? existing.first.shopLogo
-          ..whatsappNumber = whatsappNumber?.trim() ?? existing.first.whatsappNumber
-          ..notificationEmail = notificationEmail?.trim() ?? existing.first.notificationEmail
-          ..emailNotificationsEnabled = emailNotificationsEnabled ?? existing.first.emailNotificationsEnabled
           ..googleSheetsUrl = googleSheetsUrl ?? existing.first.googleSheetsUrl)
         : ShopModel(
             shopId: preferredShopId ?? QrService.newShopId(),
@@ -84,9 +78,6 @@ class ShopProvider extends ChangeNotifier {
             shopLogo: shopLogo,
             googleReviewUrl: googleReviewUrl.trim(),
             createdAt: DateTime.now(),
-            whatsappNumber: whatsappNumber?.trim(),
-            notificationEmail: notificationEmail?.trim(),
-            emailNotificationsEnabled: emailNotificationsEnabled ?? false,
             googleSheetsUrl: googleSheetsUrl?.trim(),
           );
 

@@ -25,4 +25,27 @@ void main() {
       expect(shop().toMap().containsKey('qrCode'), isFalse);
     });
   });
+
+  group('removed contact fields', () {
+    test('are no longer written', () {
+      final map = shop().toMap();
+      for (final field in [
+        'notificationEmail',
+        'emailNotificationsEnabled',
+        'whatsappNumber',
+      ]) {
+        expect(map.containsKey(field), isFalse, reason: field);
+      }
+    });
+
+    test('a doc still holding them parses and ignores them', () {
+      final map = shop().toMap()
+        ..addAll({
+          'notificationEmail': 'placeholder',
+          'emailNotificationsEnabled': true,
+          'whatsappNumber': 'placeholder',
+        });
+      expect(ShopModel.fromMap(map).shopName, 'Shop');
+    });
+  });
 }

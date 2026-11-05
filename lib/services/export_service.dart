@@ -87,14 +87,12 @@ class ExportService {
       );
 
   static pw.Widget _shopsTable(List<ShopModel> shops) {
-    const headers = ['Shop Name', 'Review URL', 'WhatsApp', 'Email', 'Created'];
+    const headers = ['Shop Name', 'Review URL', 'Created'];
     final rows = shops
         .map(
           (s) => [
             s.shopName,
             s.googleReviewUrl,
-            s.whatsappNumber ?? '—',
-            s.notificationEmail ?? '—',
             _readableDate(s.createdAt),
           ],
         )

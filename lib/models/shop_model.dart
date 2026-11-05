@@ -19,14 +19,9 @@ class ShopModel extends HiveObject {
   @HiveField(4)
   DateTime createdAt;
 
-  @HiveField(5)
-  String? whatsappNumber;
-
-  @HiveField(6)
-  String? notificationEmail;
-
-  @HiveField(7, defaultValue: false)
-  bool emailNotificationsEnabled;
+  // Hive field ids 5, 6 and 7 are retired (whatsappNumber, notificationEmail,
+  // emailNotificationsEnabled). Old cached records still contain them, so
+  // they must never be reused.
 
   @HiveField(8)
   String? googleSheetsUrl;
@@ -42,9 +37,6 @@ class ShopModel extends HiveObject {
     this.shopLogo,
     required this.googleReviewUrl,
     required this.createdAt,
-    this.whatsappNumber,
-    this.notificationEmail,
-    this.emailNotificationsEnabled = false,
     this.googleSheetsUrl,
     this.qrCode,
   });
@@ -56,9 +48,6 @@ class ShopModel extends HiveObject {
       'shopLogo': shopLogo,
       'googleReviewUrl': googleReviewUrl,
       'createdAt': createdAt.toIso8601String(),
-      'whatsappNumber': whatsappNumber,
-      'notificationEmail': notificationEmail,
-      'emailNotificationsEnabled': emailNotificationsEnabled,
       'googleSheetsUrl': googleSheetsUrl,
       // Left out when unset so a shop save merged over the doc can't erase it.
       if (qrCode != null) 'qrCode': qrCode,
@@ -72,10 +61,6 @@ class ShopModel extends HiveObject {
       shopLogo: map['shopLogo'] as String?,
       googleReviewUrl: map['googleReviewUrl'] as String,
       createdAt: DateTime.parse(map['createdAt'] as String),
-      whatsappNumber: map['whatsappNumber'] as String?,
-      notificationEmail: map['notificationEmail'] as String?,
-      emailNotificationsEnabled:
-          (map['emailNotificationsEnabled'] as bool?) ?? false,
       googleSheetsUrl: map['googleSheetsUrl'] as String?,
       qrCode: map['qrCode'] as String?,
     );

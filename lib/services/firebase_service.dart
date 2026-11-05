@@ -115,6 +115,55 @@ class FirebaseService {
     }
   }
 
+  /// Contact fields from the removed email feature, which older shop docs
+  /// still hold. Only the manual scrub in Settings touches these.
+  static const List<String> legacyContactFields = [
+    'notificationEmail',
+    'emailNotificationsEnabled',
+    'whatsappNumber',
+  ];
+
+  /// Ids of shop docs still holding a legacy contact field, or null if the
+  /// fetch failed. Reads raw docs, as [ShopModel] no longer has these fields.
+  static Future<List<String>?> fetchShopIdsWithLegacyFields() async {
+    if (!isAvailable) return null;
+    try {
+      final snap = await _shopsCollection.get();
+      return snap.docs
+          .where((d) => legacyContactFields.any(d.data().containsKey))
+          .map((d) => d.id)
+          .toList();
+    } catch (e) {
+      debugPrint('FirebaseService.fetchShopIdsWithLegacyFields failed: $e');
+      return null;
+    }
+  }
+
+  /// Deletes the legacy contact fields, and nothing else, from [shopIds].
+  /// Returns how many docs were cleaned, which is short of the full list if
+  /// a batch failed partway. Safe to run again to finish the rest.
+  static Future<int> removeLegacyContactFields(List<String> shopIds) async {
+    if (!isAvailable) return 0;
+    const batchSize = 400; // Firestore allows at most 500 writes per batch.
+    var cleaned = 0;
+    try {
+      for (var start = 0; start < shopIds.length; start += batchSize) {
+        final chunk = shopIds.skip(start).take(batchSize);
+        final batch = FirebaseFirestore.instance.batch();
+        for (final id in chunk) {
+          batch.update(_shopsCollection.doc(id), {
+            for (final field in legacyContactFields) field: FieldValue.delete(),
+          });
+        }
+        await batch.commit();
+        cleaned += chunk.length;
+      }
+    } catch (e) {
+      debugPrint('FirebaseService.removeLegacyContactFields failed: $e');
+    }
+    return cleaned;
+  }
+
   static Future<ShopModel?> fetchShop(String shopId) async {
     if (!isAvailable) return null;
     try {
@@ -127,8 +176,13 @@ class FirebaseService {
     }
   }
 
-  /// Saves feedback and marks emailNotificationStatus as 'pending' so the
-  /// Cloud Function picks it up. Returns true if the write succeeded.
+  /// Returns true if the write succeeded.
+  ///
+  /// Nothing reads emailNotificationStatus any more, but the interim
+  /// firestore.rules still require it. Remove the key once the phase 1a rules
+  /// are live and confirmed (see DEPLOY_PHASE_1A.md): those treat it as
+  /// optional, and sending it keeps both the preview test and a rules
+  /// rollback working.
   static Future<bool> submitFeedback({
     required String shopId,
     required int rating,
