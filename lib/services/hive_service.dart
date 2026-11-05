@@ -77,6 +77,12 @@ class HiveService {
     await qrCodesBox.putAll({for (final q in qrCodes) q.qrId: q});
   }
 
+  /// Wipes the admin's cached records from this browser on sign-out.
+  static Future<void> clearShopsAndQrCodes() async {
+    await shopsBox.clear();
+    await qrCodesBox.clear();
+  }
+
   // ---- Sync flags ----
   // Before cloud sync existed, records lived only in this browser's Hive.
   // The first sync uploads those once; after that Firestore is the source

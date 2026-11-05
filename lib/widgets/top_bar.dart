@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/qr_provider.dart';
 import '../providers/shop_provider.dart';
+import '../services/auth_service.dart';
 import '../services/export_service.dart';
 import '../utils/app_colors.dart';
 
@@ -32,6 +33,12 @@ class TopBar extends StatelessWidget implements PreferredSizeWidget {
             ),
           const Spacer(),
           _ExportButton(),
+          const SizedBox(width: 6),
+          IconButton(
+            tooltip: 'Sign out',
+            onPressed: AuthService.signOut,
+            icon: const Icon(Icons.logout_rounded, color: AppColors.textSecondary),
+          ),
         ],
       ),
     );

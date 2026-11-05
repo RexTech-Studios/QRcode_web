@@ -28,19 +28,21 @@ class ShopProvider extends ChangeNotifier {
 
   /// Primary load: fetch from Firestore and mirror to Hive.
   /// Falls back to Hive if Firestore is unavailable or fails.
-  Future<void> loadShops() async {
+  /// Returns true if the list came from Firestore.
+  Future<bool> loadShops() async {
     final remote = await FirebaseService.fetchAllShops();
     if (remote != null) {
       await HiveService.replaceShops(remote);
     }
     _loadFromHive();
+    return remote != null;
   }
 
-  /// Alias kept for call-sites that still call syncFromCloud.
-  Future<void> syncFromCloud() => loadShops();
-
-  void selectShop(ShopModel shop) {
-    _selectedShop = shop;
+  /// Forgets everything in memory, on sign-out.
+  void reset() {
+    _shops = [];
+    _selectedShop = null;
+    lastSheetWarning = null;
     notifyListeners();
   }
 

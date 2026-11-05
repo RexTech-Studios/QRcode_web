@@ -18,16 +18,22 @@ class QrProvider extends ChangeNotifier {
 
   /// Primary load: fetch from Firestore and mirror to Hive.
   /// Falls back to Hive if Firestore is unavailable or fails.
-  Future<void> loadQrCodes() async {
+  /// Returns true if the list came from Firestore.
+  Future<bool> loadQrCodes() async {
     final remote = await FirebaseService.fetchAllQrCodes();
     if (remote != null) {
       await HiveService.replaceQrCodes(remote);
     }
     _loadFromHive();
+    return remote != null;
   }
 
-  /// Alias kept for call-sites that still call syncFromCloud.
-  Future<void> syncFromCloud() => loadQrCodes();
+  /// Forgets everything in memory, on sign-out.
+  void reset() {
+    _qrCodes = [];
+    selectedStyle = QRStyle.classic;
+    notifyListeners();
+  }
 
   void selectStyle(QRStyle style) {
     selectedStyle = style;

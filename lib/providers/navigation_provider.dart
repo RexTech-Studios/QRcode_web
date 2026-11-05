@@ -12,4 +12,9 @@ class NavigationProvider extends ChangeNotifier {
     _current = tab;
     notifyListeners();
   }
+
+  void reset() {
+    _current = DashboardTab.generateQr;
+    notifyListeners();
+  }
 }
