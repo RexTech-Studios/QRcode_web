@@ -96,6 +96,24 @@ class FirebaseService {
     }
   }
 
+  /// Returns the first QR record pointing at [shopId] (there's normally
+  /// only one), or null if none exists or the fetch failed. Used by the
+  /// public review page to label feedback with the QR's short code.
+  static Future<QRCodeModel?> fetchQrCodeForShop(String shopId) async {
+    if (!isAvailable) return null;
+    try {
+      final snap = await _qrCodesCollection
+          .where('shopId', isEqualTo: shopId)
+          .limit(1)
+          .get();
+      if (snap.docs.isEmpty) return null;
+      return QRCodeModel.fromMap(snap.docs.first.data());
+    } catch (e) {
+      debugPrint('FirebaseService.fetchQrCodeForShop failed: $e');
+      return null;
+    }
+  }
+
   static Future<ShopModel?> fetchShop(String shopId) async {
     if (!isAvailable) return null;
     try {

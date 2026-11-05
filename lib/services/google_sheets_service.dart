@@ -30,7 +30,7 @@ import 'package:http/http.dart' as http;
 ///       const ss   = SpreadsheetApp.create(name);
 ///       const sheet = ss.getActiveSheet();
 ///       sheet.setName('Feedback');
-///       sheet.appendRow(['Shop Name', 'Date', 'Time', 'Rating', 'Comment']);
+///       sheet.appendRow(['Shop Name', 'QR Code', 'Date', 'Time', 'Rating', 'Comment']);
 ///       sheet.setFrozenRows(1);
 ///
 ///       // Make it viewable by anyone with the link
@@ -44,6 +44,15 @@ import 'package:http/http.dart' as http;
 ///         .setMimeType(ContentService.MimeType.JSON);
 ///     }
 ///
+///     // ── RENAME: keep the spreadsheet title in sync with the shop name ────
+///     if (data.action === 'rename_sheet') {
+///       SpreadsheetApp.openById(data.spreadsheetId)
+///         .rename(data.shopName.substring(0, 100));
+///       return ContentService
+///         .createTextOutput(JSON.stringify({ success: true, renamed: true }))
+///         .setMimeType(ContentService.MimeType.JSON);
+///     }
+///
 ///     // ── FEEDBACK: append a row using the spreadsheet ID ──────────────────
 ///     if (data.action === 'submit_feedback') {
 ///       const ss    = SpreadsheetApp.openById(data.spreadsheetId);
@@ -51,6 +60,7 @@ import 'package:http/http.dart' as http;
 ///       const now   = new Date();
 ///       sheet.appendRow([
 ///         data.shopName,
+///         data.qrCode || '',
 ///         now.toLocaleDateString(),
 ///         now.toLocaleTimeString(),
 ///         data.rating + ' / 5',
@@ -131,12 +141,41 @@ class GoogleSheetsService {
     }
   }
 
+  /// Renames the shop's spreadsheet file to match its new shop name.
+  static Future<bool> renameShopSheet({
+    required String? googleSheetsUrl,
+    required String shopName,
+  }) async {
+    final spreadsheetId = _extractSpreadsheetId(googleSheetsUrl);
+    if (spreadsheetId == null) return false;
+    try {
+      // Omit Content-Type to avoid a CORS preflight on Flutter web.
+      final response = await http.post(
+        Uri.parse(_scriptUrl),
+        body: jsonEncode({
+          'action': 'rename_sheet',
+          'spreadsheetId': spreadsheetId,
+          'shopName': shopName,
+        }),
+      );
+      if (response.statusCode != 200) return false;
+      // An older script answers unknown actions with success, so require
+      // the explicit `renamed` flag.
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      return decoded['renamed'] == true;
+    } catch (e) {
+      debugPrint('GoogleSheetsService.renameShopSheet error: $e');
+      return false;
+    }
+  }
+
   /// Appends a low-rating feedback row to the shop's own spreadsheet.
   static Future<bool> submitFeedback({
     required String shopName,
     required String? googleSheetsUrl,
     required int rating,
     required String? comment,
+    String? qrCode,
   }) async {
     final spreadsheetId = _extractSpreadsheetId(googleSheetsUrl);
     if (spreadsheetId == null) {
@@ -149,6 +188,7 @@ class GoogleSheetsService {
       'spreadsheetId': spreadsheetId,
       'rating': rating,
       'comment': comment ?? '',
+      'qrCode': qrCode ?? '',
     });
   }
 

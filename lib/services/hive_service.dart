@@ -88,14 +88,16 @@ class HiveService {
       metaBox.put('uploaded_$key', true);
 
   // ---- Review submission state ----
-  // Persists per-shop so a customer who already submitted a review on this
-  // device/browser never sees the review form again, including after
-  // refreshing or returning from the Google Maps redirect.
-  static bool isReviewSubmitted(String shopId) =>
-      metaBox.get('review_submitted_$shopId', defaultValue: false) as bool;
+  // In-memory on purpose: any page load, including a refresh or a new scan,
+  // must show the review form again.
+  static final Set<String> _reviewSubmittedThisSession = {};
 
-  static Future<void> markReviewSubmitted(String shopId) =>
-      metaBox.put('review_submitted_$shopId', true);
+  static bool isReviewSubmitted(String shopId) =>
+      _reviewSubmittedThisSession.contains(shopId);
+
+  static Future<void> markReviewSubmitted(String shopId) async {
+    _reviewSubmittedThisSession.add(shopId);
+  }
 
   // ---- Settings ----
   static SettingsModel getSettings() {

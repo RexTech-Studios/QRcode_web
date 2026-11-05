@@ -56,6 +56,7 @@ class _Brand {
 
 class _ReviewScreenState extends State<ReviewScreen> {
   ShopModel? _shop;
+  String? _qrCode;
   bool _loading = true;
   int _rating = 0;
   int _hoverRating = 0;
@@ -99,6 +100,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
     // Cache-first: if this device has seen the shop before, show it instantly
     // (no network wait) and then quietly refresh from Firestore in the
     // background so a renamed shop / updated review link stays current.
+    final cachedQr = HiveService.getQrCodesForShop(widget.shopId);
+    if (cachedQr.isNotEmpty) _qrCode = cachedQr.first.qrCode;
+
     final cached = HiveService.getShop(widget.shopId);
     if (cached != null) {
       setState(() {
@@ -112,6 +116,10 @@ class _ReviewScreenState extends State<ReviewScreen> {
     final remote = await FirebaseService.fetchShop(widget.shopId);
     if (remote != null) {
       await HiveService.saveShop(remote);
+    }
+    if (_qrCode == null) {
+      final remoteQr = await FirebaseService.fetchQrCodeForShop(widget.shopId);
+      if (remoteQr != null) _qrCode = remoteQr.qrCode;
     }
     if (!mounted) return;
     setState(() {
@@ -136,6 +144,20 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
   Future<void> _submit() async {
     if (_rating == 0 || _shop == null) return;
+
+    // Fire the Google Maps redirect synchronously, inside the original tap's
+    // user-gesture, for a perfect rating. Many mobile browsers (iOS Safari,
+    // in-app WebViews like Instagram/Facebook) only allow opening an
+    // external URL while still inside the gesture that triggered it -- if we
+    // wait until after the Firestore `await` below, the browser has already
+    // lost that "user activation" and silently drops the navigation.
+    if (_rating >= 4) {
+      final uri = Uri.tryParse(_shop!.googleReviewUrl);
+      if (uri != null) {
+        unawaited(launchUrl(uri, mode: LaunchMode.externalApplication));
+      }
+    }
+
     setState(() {
       _submitting = true;
       _submitError = null;
@@ -171,6 +193,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
         googleSheetsUrl: _shop!.googleSheetsUrl,
         rating: _rating,
         comment: comment,
+        qrCode: _qrCode,
       );
       await HiveService.markReviewSubmitted(widget.shopId);
       setState(() {
@@ -179,17 +202,14 @@ class _ReviewScreenState extends State<ReviewScreen> {
         _wasLowRating = true;
       });
     } else {
-      // Perfect rating (5): mark submitted, then redirect to Google Maps
+      // High rating (4-5): the redirect was already launched synchronously
+      // above, within the original tap's user gesture. Just mark submitted.
       await HiveService.markReviewSubmitted(widget.shopId);
       setState(() {
         _submitting = false;
         _submitted = true;
         _wasLowRating = false;
       });
-      final uri = Uri.tryParse(_shop!.googleReviewUrl);
-      if (uri != null) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
     }
   }
 
@@ -198,15 +218,6 @@ class _ReviewScreenState extends State<ReviewScreen> {
   // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    // Breakpoints: phone < 600, tablet 600–1024, desktop > 1024. On phones
-    // there's no fixed cap -- the card tracks the screen (see the
-    // percentage-based margin in _buildContent) so it stays close to full
-    // width on a 320px phone and on a 430px one alike, instead of a single
-    // fixed maxWidth reading as comfortably wide on one and cramped on the
-    // other.
-    final maxWidth = width >= 1024 ? 560.0 : (width >= 600 ? 520.0 : width);
-
     // canPop: false blocks Flutter route popping for both the review and
     // thank-you states; the browser History API guard (initState) handles
     // the browser/Android hardware back button on web.
@@ -219,40 +230,66 @@ class _ReviewScreenState extends State<ReviewScreen> {
         resizeToAvoidBottomInset: true,
         body: SafeArea(
           top: false,
-          child: Center(
-            child: SingleChildScrollView(
-              // Dismiss the keyboard on scroll and leave room past the iOS
-              // Safari bottom toolbar / home indicator so nothing is clipped.
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewPadding.bottom,
-              ),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: maxWidth),
-                child: _loading
-                    ? const Padding(
-                        padding: EdgeInsets.all(80),
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            color: _Brand.primary,
+          // LayoutBuilder reads the actual rendered constraint width rather
+          // than MediaQuery's reported device size. On mobile browsers with
+          // "Desktop site" / a forced desktop preview enabled, MediaQuery can
+          // keep reporting a stale/virtual width while the real layout
+          // constraint still reflects the physical viewport -- building off
+          // constraints.maxWidth is what makes the layout snap back to the
+          // true available width on a phone even when a desktop view was
+          // requested.
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              // Breakpoints: phone < 600, tablet 600–1024, desktop > 1024.
+              // On phones there's no fixed cap -- the card tracks the screen
+              // (see the percentage-based margin in _buildContent) so it
+              // stays close to full width on a 320px phone and on a 430px
+              // one alike, instead of a single fixed maxWidth reading as
+              // comfortably wide on one and cramped on the other.
+              final maxWidth = width >= 1024
+                  ? 650.0
+                  : (width >= 600 ? 520.0 : width);
+
+              return SingleChildScrollView(
+                // Dismiss the keyboard on scroll and leave room past the iOS
+                // Safari bottom toolbar / home indicator so nothing is clipped.
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewPadding.bottom,
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: width),
+                  child: _loading
+                      ? const Padding(
+                          padding: EdgeInsets.all(80),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: _Brand.primary,
+                            ),
                           ),
-                        ),
-                      )
-                    : _shop == null
-                    ? Padding(
-                        padding: const EdgeInsets.all(28),
-                        child: _buildNotFound(),
-                      )
-                    : _buildContent(_shop!, width),
-              ),
-            ),
+                        )
+                      : _shop == null
+                      ? Center(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(maxWidth: maxWidth),
+                            child: Padding(
+                              padding: const EdgeInsets.all(28),
+                              child: _buildNotFound(),
+                            ),
+                          ),
+                        )
+                      : _buildContent(_shop!, width, maxWidth),
+                ),
+              );
+            },
           ),
         ),
       ),
     );
   }
 
-  Widget _buildContent(ShopModel shop, double width) {
+  Widget _buildContent(ShopModel shop, double width, double maxWidth) {
     final isWide = width >= 600;
     // On phones, a flat 18px margin reads as near-full-width on a 430px
     // screen but shaves off a disproportionate chunk on a 320px one. Scaling
@@ -262,12 +299,19 @@ class _ReviewScreenState extends State<ReviewScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Full-bleed header: spans the entire viewport width even on large
+        // desktop screens, with only the card below constrained/centered.
         _buildHeader(shop, isWide),
-        Transform.translate(
-          offset: const Offset(0, -34),
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(horizontalMargin, 0, horizontalMargin, 24),
-            child: _submitted ? _buildThankYou(isWide) : _buildCard(shop, isWide),
+        Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: Transform.translate(
+              offset: const Offset(0, -34),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(horizontalMargin, 0, horizontalMargin, 24),
+                child: _submitted ? _buildThankYou(isWide) : _buildCard(shop, isWide),
+              ),
+            ),
           ),
         ),
       ],

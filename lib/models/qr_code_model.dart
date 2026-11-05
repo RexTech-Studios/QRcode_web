@@ -37,6 +37,13 @@ class QRCodeModel extends HiveObject {
   @HiveField(6)
   DateTime? updatedAt;
 
+  /// Short human-readable identifier (e.g. "QR1", "QR2") so a printed QR
+  /// sticker can be identified without reading the full UUID. Assigned once
+  /// when the QR is created and never changes, even if the shop it points
+  /// to is later edited.
+  @HiveField(7)
+  String qrCode;
+
   QRCodeModel({
     required this.qrId,
     required this.shopId,
@@ -45,6 +52,7 @@ class QRCodeModel extends HiveObject {
     required this.qrStyle,
     required this.createdAt,
     this.updatedAt,
+    required this.qrCode,
   });
 
   Map<String, dynamic> toMap() {
@@ -56,6 +64,7 @@ class QRCodeModel extends HiveObject {
       'qrStyle': qrStyle.name,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
+      'qrCode': qrCode,
     };
   }
 
@@ -73,6 +82,7 @@ class QRCodeModel extends HiveObject {
       updatedAt: map['updatedAt'] != null
           ? DateTime.parse(map['updatedAt'] as String)
           : null,
+      qrCode: (map['qrCode'] as String?) ?? '',
     );
   }
 }

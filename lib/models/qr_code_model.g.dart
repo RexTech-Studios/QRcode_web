@@ -24,13 +24,14 @@ class QRCodeModelAdapter extends TypeAdapter<QRCodeModel> {
       qrStyle: fields[4] as QRStyle,
       createdAt: fields[5] as DateTime,
       updatedAt: fields[6] as DateTime?,
+      qrCode: fields[7] == null ? '' : fields[7] as String,
     );
   }
 
   @override
   void write(BinaryWriter writer, QRCodeModel obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.qrId)
       ..writeByte(1)
@@ -44,7 +45,9 @@ class QRCodeModelAdapter extends TypeAdapter<QRCodeModel> {
       ..writeByte(5)
       ..write(obj.createdAt)
       ..writeByte(6)
-      ..write(obj.updatedAt);
+      ..write(obj.updatedAt)
+      ..writeByte(7)
+      ..write(obj.qrCode);
   }
 
   @override

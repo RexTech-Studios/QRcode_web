@@ -37,6 +37,21 @@ class QrProvider extends ChangeNotifier {
   List<QRCodeModel> qrCodesForShop(String shopId) =>
       _qrCodes.where((q) => q.shopId == shopId).toList();
 
+  /// The next sequential short code ("QR1", "QR2", ...) that would be
+  /// assigned to a newly generated QR, based on the highest number already
+  /// in use. Exposed so the UI can preview it before saving.
+  String get nextQrCode {
+    var highest = 0;
+    for (final qr in _qrCodes) {
+      final match = RegExp(r'^QR(\d+)$').firstMatch(qr.qrCode);
+      if (match != null) {
+        final n = int.tryParse(match.group(1)!) ?? 0;
+        if (n > highest) highest = n;
+      }
+    }
+    return 'QR${highest + 1}';
+  }
+
   /// Builds the review-page URL for [shopId], saves a new QR record to
   /// Hive and Firestore, and returns it.
   Future<QRCodeModel> generateAndSaveQr({
@@ -52,6 +67,7 @@ class QrProvider extends ChangeNotifier {
       qrLabel: qrLabel.trim().isEmpty ? 'Review us on Google' : qrLabel.trim(),
       qrStyle: style ?? selectedStyle,
       createdAt: DateTime.now(),
+      qrCode: nextQrCode,
     );
 
     // Firebase is primary: write there first, mirror to Hive regardless.

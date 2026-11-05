@@ -260,6 +260,27 @@ class _QrCodeCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
+          if (qr.qrCode.isNotEmpty)
+            Align(
+              alignment: Alignment.center,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.primarySoft,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  qr.qrCode,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 8),
           Text(
             shop?.shopName ?? 'Unknown shop',
             maxLines: 1,
@@ -554,11 +575,11 @@ class _EditQrModalState extends State<_EditQrModal> {
       final shopProvider = context.read<ShopProvider>();
       final qrProvider = context.read<QrProvider>();
 
-      // Update the shop (reuses shopId via name match or existing shop).
       await shopProvider.saveShop(
         shopName: _shopNameCtrl.text,
         googleReviewUrl: _reviewUrlCtrl.text,
         preferredShopId: widget.shop?.shopId,
+        editingShopId: widget.shop?.shopId,
         googleSheetsUrl: _sheetsUrlCtrl.text.trim().isEmpty ? null : _sheetsUrlCtrl.text.trim(),
       );
 
@@ -571,6 +592,7 @@ class _EditQrModalState extends State<_EditQrModal> {
         qrStyle: _selectedStyle,
         createdAt: widget.qr.createdAt,
         updatedAt: DateTime.now(),
+        qrCode: widget.qr.qrCode,
       );
 
       await qrProvider.updateQrCode(updatedQr);
@@ -578,8 +600,10 @@ class _EditQrModalState extends State<_EditQrModal> {
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('QR Code updated successfully.'),
+          SnackBar(
+            content: Text(
+              shopProvider.lastSheetWarning ?? 'QR Code updated successfully.',
+            ),
             backgroundColor: AppColors.primary,
           ),
         );
@@ -618,10 +642,12 @@ class _EditQrModalState extends State<_EditQrModal> {
               // Header
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Edit QR Code',
-                      style: TextStyle(
+                      widget.qr.qrCode.isEmpty
+                          ? 'Edit QR Code'
+                          : 'Edit QR Code · ${widget.qr.qrCode}',
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                         color: AppColors.textPrimary,

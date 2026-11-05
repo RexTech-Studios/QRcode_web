@@ -27,7 +27,32 @@
   <link rel="icon" type="image/png" href="favicon.png"/>
 
   <title>Leave a Review</title>
-  <link rel="manifest" href="manifest.json">
+
+  <!--
+    Customers who scan a QR code should never be asked to install the app, so
+    the manifest (which is what makes a page installable) is only attached
+    outside the review page. The listener covers an admin session that moves
+    onto a review link after the manifest has already loaded.
+  -->
+  <script>
+    (function () {
+      function isReviewPage() {
+        return /^\/review(\/|$)/.test(location.pathname) ||
+               /^#\/review(\/|$)/.test(location.hash);
+      }
+
+      if (!isReviewPage()) {
+        var manifest = document.createElement('link');
+        manifest.rel = 'manifest';
+        manifest.href = 'manifest.json';
+        document.head.appendChild(manifest);
+      }
+
+      window.addEventListener('beforeinstallprompt', function (event) {
+        if (isReviewPage()) event.preventDefault();
+      });
+    })();
+  </script>
 
   <style>
     html, body {

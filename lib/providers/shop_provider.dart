@@ -46,22 +46,29 @@ class ShopProvider extends ChangeNotifier {
 
   /// Creates a new shop, or updates an existing one with the same name,
   /// then persists to Hive (local cache) and Firestore (cloud sync).
+  /// Pass [editingShopId] to update that shop even if its name changed.
   Future<ShopModel> saveShop({
     required String shopName,
     required String googleReviewUrl,
     String? shopLogo,
     String? preferredShopId,
+    String? editingShopId,
     String? whatsappNumber,
     String? notificationEmail,
     bool? emailNotificationsEnabled,
     String? googleSheetsUrl,
   }) async {
-    final existing = _shops.where(
-      (s) => s.shopName.toLowerCase() == shopName.trim().toLowerCase(),
-    );
+    final editing = _shops.where((s) => s.shopId == editingShopId);
+    final existing = editing.isNotEmpty
+        ? editing
+        : _shops.where(
+            (s) => s.shopName.toLowerCase() == shopName.trim().toLowerCase(),
+          );
+    final previousName = existing.isNotEmpty ? existing.first.shopName : null;
 
     final shop = existing.isNotEmpty
         ? (existing.first
+          ..shopName = shopName.trim()
           ..googleReviewUrl = googleReviewUrl.trim()
           ..shopLogo = shopLogo ?? existing.first.shopLogo
           ..whatsappNumber = whatsappNumber?.trim() ?? existing.first.whatsappNumber
@@ -93,6 +100,15 @@ class ShopProvider extends ChangeNotifier {
         shop.googleSheetsUrl = result.url;
       } else {
         lastSheetWarning = result.error;
+      }
+    } else if (previousName != null && previousName != shop.shopName) {
+      final renamed = await GoogleSheetsService.renameShopSheet(
+        googleSheetsUrl: shop.googleSheetsUrl,
+        shopName: shop.shopName,
+      );
+      if (!renamed) {
+        lastSheetWarning =
+            'Shop saved, but the Google Sheet title could not be updated.';
       }
     }
 

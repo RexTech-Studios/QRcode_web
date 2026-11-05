@@ -441,13 +441,39 @@ class _GenerateQrScreenState extends State<GenerateQrScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'QR Code Preview',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Expanded(
+                child: Text(
+                  'QR Code Preview',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.primarySoft,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  qrProvider.qrCodesForShop(_previewShopId).isNotEmpty
+                      ? qrProvider.qrCodesForShop(_previewShopId).first.qrCode
+                      : qrProvider.nextQrCode,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 24),
           Center(
