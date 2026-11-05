@@ -4,17 +4,17 @@ import 'package:http/http.dart' as http;
 
 /// Sends feedback and shop-setup calls to a Google Apps Script Web App,
 /// which creates a separate Google Spreadsheet per shop in the Drive account
-/// salebayinformation48@gmail.com and appends feedback rows to it.
+/// SHEETS_OWNER_ACCOUNT and appends feedback rows to it.
 ///
 /// ─── ONE-TIME SETUP ────────────────────────────────────────────────────────
-/// 1. Sign in to Google as salebayinformation48@gmail.com.
+/// 1. Sign in to Google as SHEETS_OWNER_ACCOUNT.
 ///
 /// 2. Go to https://script.google.com → New project.
 ///
 /// 3. Paste the script below, then save (Ctrl+S).
 ///
 /// 4. Click Deploy → New deployment → Web app.
-///      Execute as: Me  (salebayinformation48@gmail.com)
+///      Execute as: Me  (SHEETS_OWNER_ACCOUNT)
 ///      Who has access: Anyone
 ///    Copy the Web app URL and paste it as [_scriptUrl] below.
 ///
@@ -103,7 +103,7 @@ class GoogleSheetsService {
   GoogleSheetsService._();
 
   /// Called when a new shop is created.
-  /// Creates a brand-new Google Spreadsheet in salebayinformation48@gmail.com's
+  /// Creates a brand-new Google Spreadsheet in SHEETS_OWNER_ACCOUNT's
   /// Drive and returns a [SheetResult] with its URL, or an error description.
   static Future<SheetResult> createShopSheet(String shopName) async {
     if (_scriptUrl == 'YOUR_APPS_SCRIPT_WEB_APP_URL') {
@@ -119,17 +119,18 @@ class GoogleSheetsService {
         Uri.parse(_scriptUrl),
         body: jsonEncode({'action': 'create_sheet', 'shopName': shopName}),
       );
-      debugPrint('GoogleSheetsService.createShopSheet status: ${response.statusCode} body: ${response.body}');
+      if (kDebugMode) {
+        debugPrint('GoogleSheetsService.createShopSheet status: ${response.statusCode} body: ${response.body}');
+      }
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body) as Map<String, dynamic>;
         final url = decoded['url'] as String?;
         if (url != null && url.isNotEmpty) return SheetResult(url: url);
         final scriptError = decoded['error'] as String?;
-        debugPrint('GoogleSheetsService.createShopSheet: no url in response: ${response.body}');
         return SheetResult(
           error: scriptError != null
               ? 'Apps Script error: $scriptError'
-              : 'Sheet service returned no URL. Response: ${response.body}',
+              : 'Sheet service returned no URL.',
         );
       }
       return SheetResult(

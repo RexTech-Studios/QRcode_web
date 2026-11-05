@@ -46,3 +46,15 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Secrets and credentials
+.env
+functions/.env*
+serviceAccountKey*.json
+*.pem
+
+# Firebase CLI deploy cache
+.firebase/
+
+# Combined hosting output
+dist/
