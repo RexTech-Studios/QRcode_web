@@ -287,12 +287,15 @@ class _Brand extends StatelessWidget {
           child: const Icon(Icons.chat_bubble, color: Colors.white, size: 18),
         ),
         const SizedBox(width: 10),
-        const Text(
-          'Full Star QR',
-          style: TextStyle(
-            fontSize: 19,
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
+        const Flexible(
+          child: Text(
+            'Full Star QR',
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+            ),
           ),
         ),
       ],

@@ -12,9 +12,9 @@
   (function () {
     if (/^#\/review\/[A-Za-z0-9-]{8,64}\/?$/.test(location.hash)) {
       location.replace('/app/' + location.hash);
-      // location.replace is asynchronous and the parser would carry on,
-      // requesting the fonts and images below. This turns the rest of the
-      // file into inert text so a scan loads nothing but the app.
+      // location.replace is asynchronous, so a browser may keep parsing. This
+      // turns the rest of the file into inert text as a safeguard. Chrome
+      // requested nothing even without it; other browsers are untested.
       document.write('<plaintext hidden>');
     }
   })();
