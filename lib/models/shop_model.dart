@@ -25,11 +25,16 @@ class ShopModel extends HiveObject {
   @HiveField(6)
   String? notificationEmail;
 
-  @HiveField(7)
+  @HiveField(7, defaultValue: false)
   bool emailNotificationsEnabled;
 
   @HiveField(8)
   String? googleSheetsUrl;
+
+  /// Short code of the shop's QR ("QR1"), kept here so the public review page
+  /// can label sheet rows without reading the admin-only qr_codes collection.
+  @HiveField(9)
+  String? qrCode;
 
   ShopModel({
     required this.shopId,
@@ -41,6 +46,7 @@ class ShopModel extends HiveObject {
     this.notificationEmail,
     this.emailNotificationsEnabled = false,
     this.googleSheetsUrl,
+    this.qrCode,
   });
 
   Map<String, dynamic> toMap() {
@@ -54,6 +60,8 @@ class ShopModel extends HiveObject {
       'notificationEmail': notificationEmail,
       'emailNotificationsEnabled': emailNotificationsEnabled,
       'googleSheetsUrl': googleSheetsUrl,
+      // Left out when unset so a shop save merged over the doc can't erase it.
+      if (qrCode != null) 'qrCode': qrCode,
     };
   }
 
@@ -69,6 +77,7 @@ class ShopModel extends HiveObject {
       emailNotificationsEnabled:
           (map['emailNotificationsEnabled'] as bool?) ?? false,
       googleSheetsUrl: map['googleSheetsUrl'] as String?,
+      qrCode: map['qrCode'] as String?,
     );
   }
 }

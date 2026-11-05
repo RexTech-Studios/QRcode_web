@@ -66,9 +66,6 @@ class HiveService {
 
   static Future<void> saveQrCode(QRCodeModel qr) => qrCodesBox.put(qr.qrId, qr);
 
-  static List<QRCodeModel> getQrCodesForShop(String shopId) =>
-      qrCodesBox.values.where((q) => q.shopId == shopId).toList();
-
   static Future<void> deleteQrCode(String qrId) => qrCodesBox.delete(qrId);
 
   /// Replaces the local QR cache with [qrCodes] (the Firestore copy).

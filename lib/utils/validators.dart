@@ -25,6 +25,14 @@ class Validators {
     return allowedHosts.any((h) => host == h || host.endsWith('.$h'));
   }
 
+  /// Whether the public review page may send a customer to [value]. The shop
+  /// doc is remote data, so this is re-checked at launch rather than trusted
+  /// from when the link was entered in the form.
+  static bool isSafeReviewRedirect(String value) {
+    if (!isValidGoogleMapsUrl(value)) return false;
+    return Uri.parse(value.trim()).scheme == 'https';
+  }
+
   static String? googleMapsUrlErrorText(String value) {
     if (value.trim().isEmpty) return null;
     if (!isValidGoogleMapsUrl(value)) {

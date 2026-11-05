@@ -24,15 +24,16 @@ class ShopModelAdapter extends TypeAdapter<ShopModel> {
       createdAt: fields[4] as DateTime,
       whatsappNumber: fields[5] as String?,
       notificationEmail: fields[6] as String?,
-      emailNotificationsEnabled: (fields[7] as bool?) ?? false,
+      emailNotificationsEnabled: fields[7] == null ? false : fields[7] as bool,
       googleSheetsUrl: fields[8] as String?,
+      qrCode: fields[9] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ShopModel obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(10)
       ..writeByte(0)
       ..write(obj.shopId)
       ..writeByte(1)
@@ -50,7 +51,9 @@ class ShopModelAdapter extends TypeAdapter<ShopModel> {
       ..writeByte(7)
       ..write(obj.emailNotificationsEnabled)
       ..writeByte(8)
-      ..write(obj.googleSheetsUrl);
+      ..write(obj.googleSheetsUrl)
+      ..writeByte(9)
+      ..write(obj.qrCode);
   }
 
   @override

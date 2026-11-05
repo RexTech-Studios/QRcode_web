@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../models/qr_code_model.dart';
 import '../models/shop_model.dart';
 import '../services/google_sheets_service.dart';
 import '../services/hive_service.dart';
@@ -133,6 +134,26 @@ class ShopProvider extends ChangeNotifier {
       );
     }
     return shop;
+  }
+
+  /// Fills in `qrCode` on shops that predate the field, from [qrCodes], which
+  /// is expected newest-first so the newest usable code wins. Only touches
+  /// shops without one, so it's safe to run on every login.
+  Future<void> backfillQrCodes(List<QRCodeModel> qrCodes) async {
+    for (final shop in _shops) {
+      if (shop.qrCode != null && shop.qrCode!.isNotEmpty) continue;
+
+      final match = qrCodes.where(
+        (q) => q.shopId == shop.shopId && q.qrCode.isNotEmpty,
+      );
+      if (match.isEmpty) continue;
+
+      final code = match.first.qrCode;
+      if (await FirebaseService.setShopQrCode(shop.shopId, code)) {
+        shop.qrCode = code;
+        await HiveService.saveShop(shop);
+      }
+    }
   }
 
   /// Creates and attaches a Google Sheet to a shop that doesn't have one yet

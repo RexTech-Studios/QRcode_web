@@ -41,7 +41,7 @@ class QRCodeModel extends HiveObject {
   /// sticker can be identified without reading the full UUID. Assigned once
   /// when the QR is created and never changes, even if the shop it points
   /// to is later edited.
-  @HiveField(7)
+  @HiveField(7, defaultValue: '')
   String qrCode;
 
   QRCodeModel({

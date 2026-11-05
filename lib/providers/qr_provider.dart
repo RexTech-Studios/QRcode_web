@@ -79,6 +79,7 @@ class QrProvider extends ChangeNotifier {
     // Firebase is primary: write there first, mirror to Hive regardless.
     final synced = await FirebaseService.upsertQrCode(qr);
     await HiveService.saveQrCode(qr);
+    await _copyQrCodeToShop(qr);
 
     // Use _loadFromHive directly so the record we just wrote to Hive is
     // immediately visible. loadQrCodes() would re-fetch from Firebase and could
@@ -96,12 +97,26 @@ class QrProvider extends ChangeNotifier {
   Future<void> updateQrCode(QRCodeModel qr) async {
     final synced = await FirebaseService.upsertQrCode(qr);
     await HiveService.saveQrCode(qr);
+    await _copyQrCodeToShop(qr);
     _loadFromHive();
     if (!synced) {
       throw StateError(
         'QR code updated in local backup only — cloud sync failed.',
       );
     }
+  }
+
+  /// Mirrors the short code onto the shop for the public review page. It only
+  /// labels sheet rows, so a failure here must not fail the QR save, and the
+  /// backfill after the next login picks up anything missed.
+  Future<void> _copyQrCodeToShop(QRCodeModel qr) async {
+    if (qr.qrCode.isEmpty) return;
+    final shop = HiveService.getShop(qr.shopId);
+    if (shop != null) {
+      shop.qrCode = qr.qrCode;
+      await HiveService.saveShop(shop);
+    }
+    await FirebaseService.setShopQrCode(qr.shopId, qr.qrCode);
   }
 
   /// Deletes from Firestore first, then removes from local Hive backup.

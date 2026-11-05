@@ -39,13 +39,32 @@ class FirebaseService {
 
   /// Returns false if the write failed. The public review page reads shops
   /// from Firestore, so callers must not treat a failed write as saved.
+  ///
+  /// Merges rather than replaces, so fields this build doesn't know about
+  /// survive a save.
   static Future<bool> upsertShop(ShopModel shop) async {
     if (!isAvailable) return false;
     try {
-      await _shopsCollection.doc(shop.shopId).set(shop.toMap());
+      await _shopsCollection
+          .doc(shop.shopId)
+          .set(shop.toMap(), SetOptions(merge: true));
       return true;
     } catch (e) {
       debugPrint('FirebaseService.upsertShop failed: $e');
+      return false;
+    }
+  }
+
+  /// Sets the short QR code on an existing shop doc. Uses update(), which
+  /// fails on a missing doc, because a merge would create a partial shop
+  /// with no name, and [ShopModel.fromMap] can't parse one of those.
+  static Future<bool> setShopQrCode(String shopId, String qrCode) async {
+    if (!isAvailable) return false;
+    try {
+      await _shopsCollection.doc(shopId).update({'qrCode': qrCode});
+      return true;
+    } catch (e) {
+      debugPrint('FirebaseService.setShopQrCode failed: $e');
       return false;
     }
   }
@@ -92,24 +111,6 @@ class FirebaseService {
       return snap.docs.map((d) => QRCodeModel.fromMap(d.data())).toList();
     } catch (e) {
       debugPrint('FirebaseService.fetchAllQrCodes failed: $e');
-      return null;
-    }
-  }
-
-  /// Returns the first QR record pointing at [shopId] (there's normally
-  /// only one), or null if none exists or the fetch failed. Used by the
-  /// public review page to label feedback with the QR's short code.
-  static Future<QRCodeModel?> fetchQrCodeForShop(String shopId) async {
-    if (!isAvailable) return null;
-    try {
-      final snap = await _qrCodesCollection
-          .where('shopId', isEqualTo: shopId)
-          .limit(1)
-          .get();
-      if (snap.docs.isEmpty) return null;
-      return QRCodeModel.fromMap(snap.docs.first.data());
-    } catch (e) {
-      debugPrint('FirebaseService.fetchQrCodeForShop failed: $e');
       return null;
     }
   }

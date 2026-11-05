@@ -90,7 +90,14 @@ class _AuthGateState extends State<AuthGate> {
   Future<void> _loadAdminData() async {
     final shopProvider = context.read<ShopProvider>();
     final qrProvider = context.read<QrProvider>();
-    await Future.wait([shopProvider.loadShops(), qrProvider.loadQrCodes()]);
+    final fresh = await Future.wait([
+      shopProvider.loadShops(),
+      qrProvider.loadQrCodes(),
+    ]);
+    // Only against fresh data: a stale cache could wrongly say a code is missing.
+    if (fresh.every((isFresh) => isFresh)) {
+      await shopProvider.backfillQrCodes(qrProvider.qrCodes);
+    }
   }
 
   Future<void> _clearLocalData() async {

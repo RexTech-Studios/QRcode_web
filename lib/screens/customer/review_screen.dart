@@ -8,6 +8,7 @@ import '../../services/google_sheets_service.dart';
 import '../../services/firebase_service.dart';
 import '../../services/hive_service.dart';
 import '../../services/browser_nav_service.dart';
+import '../../utils/validators.dart';
 
 /// Public, unauthenticated page opened when a customer scans a shop's QR
 /// code. Collects a star rating + optional comment and saves feedback to
@@ -56,7 +57,6 @@ class _Brand {
 
 class _ReviewScreenState extends State<ReviewScreen> {
   ShopModel? _shop;
-  String? _qrCode;
   bool _loading = true;
   int _rating = 0;
   int _hoverRating = 0;
@@ -64,6 +64,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
   bool _submitted = false;
   bool _submitting = false;
   bool _wasLowRating = false;
+  bool _openedGoogleReview = false;
   String? _submitError;
 
   @override
@@ -97,43 +98,17 @@ class _ReviewScreenState extends State<ReviewScreen> {
   }
 
   Future<void> _loadShop() async {
-    // Cache-first: if this device has seen the shop before, show it instantly
-    // (no network wait) and then quietly refresh from Firestore in the
-    // background so a renamed shop / updated review link stays current.
-    final cachedQr = HiveService.getQrCodesForShop(widget.shopId);
-    if (cachedQr.isNotEmpty) _qrCode = cachedQr.first.qrCode;
-
-    final cached = HiveService.getShop(widget.shopId);
-    if (cached != null) {
-      setState(() {
-        _shop = cached;
-        _loading = false;
-      });
-      unawaited(_refreshShopInBackground());
-      return;
-    }
-
+    // Network-first, so a customer is never redirected using a stale review
+    // link. The Hive copy is only the offline fallback.
     final remote = await FirebaseService.fetchShop(widget.shopId);
     if (remote != null) {
       await HiveService.saveShop(remote);
     }
-    if (_qrCode == null) {
-      final remoteQr = await FirebaseService.fetchQrCodeForShop(widget.shopId);
-      if (remoteQr != null) _qrCode = remoteQr.qrCode;
-    }
     if (!mounted) return;
     setState(() {
-      _shop = remote;
+      _shop = remote ?? HiveService.getShop(widget.shopId);
       _loading = false;
     });
-  }
-
-  Future<void> _refreshShopInBackground() async {
-    final remote = await FirebaseService.fetchShop(widget.shopId);
-    if (remote == null) return;
-    await HiveService.saveShop(remote);
-    if (!mounted) return;
-    setState(() => _shop = remote);
   }
 
   @override
@@ -151,11 +126,18 @@ class _ReviewScreenState extends State<ReviewScreen> {
     // external URL while still inside the gesture that triggered it -- if we
     // wait until after the Firestore `await` below, the browser has already
     // lost that "user activation" and silently drops the navigation.
-    if (_rating >= 4) {
-      final uri = Uri.tryParse(_shop!.googleReviewUrl);
-      if (uri != null) {
-        unawaited(launchUrl(uri, mode: LaunchMode.externalApplication));
-      }
+    //
+    // The link comes from the shop doc, so it's checked first. A bad one just
+    // skips the redirect: the feedback is still saved and thanked for below.
+    _openedGoogleReview =
+        _rating >= 4 && Validators.isSafeReviewRedirect(_shop!.googleReviewUrl);
+    if (_openedGoogleReview) {
+      unawaited(
+        launchUrl(
+          Uri.parse(_shop!.googleReviewUrl.trim()),
+          mode: LaunchMode.externalApplication,
+        ),
+      );
     }
 
     setState(() {
@@ -193,7 +175,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
         googleSheetsUrl: _shop!.googleSheetsUrl,
         rating: _rating,
         comment: comment,
-        qrCode: _qrCode,
+        qrCode: _shop!.qrCode,
       );
       await HiveService.markReviewSubmitted(widget.shopId);
       setState(() {
@@ -202,7 +184,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
         _wasLowRating = true;
       });
     } else {
-      // High rating (4-5): the redirect was already launched synchronously
+      // High rating (4-5): any redirect was already launched synchronously
       // above, within the original tap's user gesture. Just mark submitted.
       await HiveService.markReviewSubmitted(widget.shopId);
       setState(() {
@@ -678,7 +660,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
     final heading = isLow ? 'We hear you!' : 'Thank you for your review!';
     final body = isLow
         ? 'Thank you for sharing your experience. Your feedback has been sent directly to the team and we will work to make things right.'
-        : "We're glad you had a great experience! We've opened Google Maps so you can share it with others.";
+        : _openedGoogleReview
+        ? "We're glad you had a great experience! We've opened Google Maps so you can share it with others."
+        : "We're glad you had a great experience! Your feedback has been sent to the team.";
 
     return Container(
       padding: EdgeInsets.fromLTRB(
