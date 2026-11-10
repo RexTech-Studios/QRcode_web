@@ -10,6 +10,7 @@ import '../utils/app_config.dart';
 import '../utils/money_format.dart';
 import '../utils/qr_number_parser.dart';
 import '../utils/qr_ranges.dart';
+import '../utils/qr_stock.dart';
 
 /// A QR code that can't be handed to a sales person, and why.
 class BlockedQr {
@@ -293,7 +294,7 @@ class SalesAdminProvider extends ChangeNotifier {
   }) {
     final demoShopIds = {
       for (final s in shops)
-        if (_demoName.hasMatch(s.shopName.trim())) s.shopId,
+        if (isDemoShopName(s.shopName)) s.shopId,
     };
     final held = {for (final a in _assignments) a.shopId};
     final numbers = <int>[];
@@ -305,8 +306,6 @@ class SalesAdminProvider extends ChangeNotifier {
     numbers.sort();
     return numbers;
   }
-
-  static final RegExp _demoName = RegExp(r'^Demo QR\d+$', caseSensitive: false);
 
   /// Works out what assigning [input] (e.g. "121-140, 145") to [rep] would do.
   ///
@@ -343,7 +342,7 @@ class SalesAdminProvider extends ChangeNotifier {
         final shop = shopsById[qr.shopId];
         if (shop == null) {
           blocked.add(BlockedQr(code, 'its shop could not be found'));
-        } else if (!_demoName.hasMatch(shop.shopName.trim())) {
+        } else if (!isDemoShopName(shop.shopName)) {
           blocked.add(
             BlockedQr(code, 'already in use by a client: ${shop.shopName.trim()}'),
           );

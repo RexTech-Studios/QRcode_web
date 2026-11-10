@@ -16,6 +16,7 @@ import '../../providers/sales_admin_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../services/download_helper.dart';
 import '../../utils/app_colors.dart';
+import '../../utils/qr_stock.dart';
 import '../../utils/validators.dart';
 import '../../widgets/coming_soon_placeholder.dart';
 import '../../widgets/qr_style_selector.dart';
@@ -28,9 +29,13 @@ class MyQrCodesScreen extends StatefulWidget {
   State<MyQrCodesScreen> createState() => _MyQrCodesScreenState();
 }
 
+/// Which QR codes to list, by whether they have been sold.
+enum _StockFilter { all, sold, notSold, withSales, free }
+
 class _MyQrCodesScreenState extends State<MyQrCodesScreen> {
   final _searchController = TextEditingController();
   String _query = '';
+  _StockFilter _stock = _StockFilter.all;
 
   @override
   void dispose() {
@@ -73,7 +78,34 @@ class _MyQrCodesScreenState extends State<MyQrCodesScreen> {
     final shops = context.watch<ShopProvider>().shops;
     final shopsById = {for (final s in shops) s.shopId: s};
     final sales = context.watch<SalesAdminProvider>();
-    final qrCodes = _filter(allQrCodes, shopsById, sales);
+
+    // Where each QR stands (sold, with a sales person, or free), worked out
+    // once, so the counts and the filter always agree.
+    final stockOf = {
+      for (final q in allQrCodes)
+        q.qrId: qrStockOf(
+          shop: shopsById[q.shopId],
+          assignment: sales.assignmentFor(q.shopId),
+        ),
+    };
+    final counts = QrStockCounts.of(stockOf.values);
+    bool inStock(QRCodeModel q) {
+      final s = stockOf[q.qrId];
+      return switch (_stock) {
+        _StockFilter.all => true,
+        _StockFilter.sold => s == QrStock.sold,
+        _StockFilter.notSold =>
+          s == QrStock.withSalesPerson || s == QrStock.free,
+        _StockFilter.withSales => s == QrStock.withSalesPerson,
+        _StockFilter.free => s == QrStock.free,
+      };
+    }
+
+    final qrCodes = _filter([
+      for (final q in allQrCodes)
+        if (inStock(q)) q,
+    ], shopsById, sales);
+    final narrowed = _query.trim().isNotEmpty || _stock != _StockFilter.all;
 
     if (allQrCodes.isEmpty) {
       return Center(
@@ -114,13 +146,37 @@ class _MyQrCodesScreenState extends State<MyQrCodesScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            _query.trim().isEmpty
+            !narrowed
                 ? '${allQrCodes.length} saved QR code${allQrCodes.length == 1 ? '' : 's'}.'
                 : '${qrCodes.length} of ${allQrCodes.length} QR codes match.',
             style: const TextStyle(
               fontSize: 14.5,
               color: AppColors.textSecondary,
             ),
+          ),
+          const SizedBox(height: 14),
+          _StockSummary(counts: counts, salesLoadFailed: sales.loadError != null),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final (filter, label) in [
+                (_StockFilter.all, 'All (${counts.total})'),
+                (_StockFilter.sold, 'Sold (${counts.sold})'),
+                (_StockFilter.notSold, 'Not sold (${counts.notSold})'),
+                (
+                  _StockFilter.withSales,
+                  'With a sales person (${counts.withSalesPerson})',
+                ),
+                (_StockFilter.free, 'Free to assign (${counts.free})'),
+              ])
+                ChoiceChip(
+                  label: Text(label),
+                  selected: _stock == filter,
+                  onSelected: (_) => setState(() => _stock = filter),
+                ),
+            ],
           ),
           const SizedBox(height: 16),
           ConstrainedBox(
@@ -152,7 +208,7 @@ class _MyQrCodesScreenState extends State<MyQrCodesScreen> {
               padding: EdgeInsets.symmetric(vertical: 40),
               child: Center(
                 child: Text(
-                  'No QR codes match your search.',
+                  'No QR codes match.',
                   style: TextStyle(
                     fontSize: 15,
                     color: AppColors.textSecondary,
@@ -186,6 +242,7 @@ class _MyQrCodesScreenState extends State<MyQrCodesScreen> {
                       qr: qr,
                       shop: shopsById[qr.shopId],
                       assignment: sales.assignmentFor(qr.shopId),
+                      stock: stockOf[qr.qrId] ?? QrStock.unknown,
                     );
                   },
                 );
@@ -193,6 +250,40 @@ class _MyQrCodesScreenState extends State<MyQrCodesScreen> {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// One line the admin can read at a glance: how many are sold and how many
+/// are still left to sell.
+class _StockSummary extends StatelessWidget {
+  final QrStockCounts counts;
+  final bool salesLoadFailed;
+  const _StockSummary({required this.counts, required this.salesLoadFailed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${counts.sold} sold  -  ${counts.notSold} left to sell '
+          '(${counts.withSalesPerson} with sales people, ${counts.free} free)',
+          style: const TextStyle(
+            fontSize: 14.5,
+            fontWeight: FontWeight.w800,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        if (salesLoadFailed)
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text(
+              'The sales team could not be loaded, so the with-a-sales-person and free counts may be off. Open Sales Team and refresh.',
+              style: TextStyle(fontSize: 12, color: AppColors.danger),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -205,8 +296,14 @@ class _QrCodeCard extends StatelessWidget {
   final QRCodeModel qr;
   final ShopModel? shop;
   final Assignment? assignment;
+  final QrStock stock;
 
-  const _QrCodeCard({required this.qr, required this.shop, this.assignment});
+  const _QrCodeCard({
+    required this.qr,
+    required this.shop,
+    this.assignment,
+    this.stock = QrStock.unknown,
+  });
 
   String _formatDate(DateTime date) {
     const months = [
@@ -433,18 +530,27 @@ class _QrCodeCard extends StatelessWidget {
               ),
             ),
           ],
-          if (assignment != null) ...[
+          if (stock != QrStock.unknown) ...[
             const SizedBox(height: 4),
             Text(
-              assignment!.isSold
-                  ? 'Sold by ${assignment!.assignedToName} on ${_formatDate(assignment!.soldAt!)}'
-                  : 'Assigned to ${assignment!.assignedToName}',
+              switch (stock) {
+                QrStock.sold when assignment?.isSold == true =>
+                  'Sold by ${assignment!.assignedToName} on ${_formatDate(assignment!.soldAt!)}',
+                QrStock.sold => 'Sold - set up for a client',
+                QrStock.withSalesPerson =>
+                  'Not sold - with ${assignment!.assignedToName}',
+                _ => 'Not sold - free to assign',
+              },
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w700,
-                color: AppColors.primary,
+                color: stock == QrStock.sold
+                    ? AppColors.primary
+                    : (stock == QrStock.free
+                          ? AppColors.textSecondary
+                          : const Color(0xFF9A6B00)),
               ),
             ),
           ],
