@@ -7,6 +7,7 @@ import 'support/fake_sales_repository.dart';
 
 void main() {
   final qrCodes = [for (var n = 121; n <= 130; n++) qrFor(n)];
+  final shops = [for (var n = 121; n <= 130; n++) shopFor(n)];
 
   SalesAdminProvider providerWith(FakeSalesRepository repo) =>
       SalesAdminProvider(repo);
@@ -99,7 +100,7 @@ void main() {
       final p = providerWith(FakeSalesRepository());
       final plan = p.planAssignment(
         input: '121-123',
-        qrCodes: qrCodes,
+        qrCodes: qrCodes, shops: shops,
         rep: ravi,
       );
       expect(plan.toAssign.map((q) => q.qrCode), ['QR121', 'QR122', 'QR123']);
@@ -111,7 +112,7 @@ void main() {
       final p = providerWith(FakeSalesRepository());
       final plan = p.planAssignment(
         input: '129-132',
-        qrCodes: qrCodes,
+        qrCodes: qrCodes, shops: shops,
         rep: ravi,
       );
       expect(plan.toAssign.map((q) => q.qrCode), ['QR129', 'QR130']);
@@ -124,7 +125,7 @@ void main() {
       await p.load();
       final plan = p.planAssignment(
         input: '121-122',
-        qrCodes: qrCodes,
+        qrCodes: qrCodes, shops: shops,
         rep: ravi,
       );
       expect(plan.alreadyWithRep, ['QR121']);
@@ -141,7 +142,7 @@ void main() {
         await p.load();
         final plan = p.planAssignment(
           input: '121',
-          qrCodes: qrCodes,
+          qrCodes: qrCodes, shops: shops,
           rep: ravi,
         );
         expect(plan.toAssign.map((q) => q.qrCode), ['QR121']);
@@ -163,7 +164,7 @@ void main() {
       );
       final p = providerWith(repo);
       await p.load();
-      final plan = p.planAssignment(input: '121', qrCodes: qrCodes, rep: ravi);
+      final plan = p.planAssignment(input: '121', qrCodes: qrCodes, shops: shops, rep: ravi);
       expect(plan.toAssign, isEmpty);
       expect(plan.blocked.single.reason, contains('sold'));
       expect(plan.canApply, isFalse);
@@ -175,9 +176,62 @@ void main() {
       );
       final p = providerWith(repo);
       await p.load();
-      final plan = p.planAssignment(input: '121', qrCodes: qrCodes, rep: ravi);
+      final plan = p.planAssignment(input: '121', qrCodes: qrCodes, shops: shops, rep: ravi);
       expect(plan.toAssign, isEmpty);
       expect(plan.blocked.single.reason, contains('locked'));
+    });
+
+    test('a QR whose shop is already a real client is never assigned, however it is typed', () {
+      final p = providerWith(FakeSalesRepository());
+      final withClient = [
+        for (var n = 121; n <= 130; n++)
+          n == 124 ? (shopFor(n)..shopName = 'D Squad') : shopFor(n),
+      ];
+
+      final typed = p.planAssignment(
+        input: '124',
+        qrCodes: qrCodes,
+        shops: withClient,
+        rep: ravi,
+      );
+      expect(typed.toAssign, isEmpty);
+      expect(typed.blocked.single.code, 'QR124');
+      expect(typed.blocked.single.reason, contains('D Squad'));
+      expect(typed.canApply, isFalse);
+
+      // In a range, only that one is held back.
+      final range = p.planAssignment(
+        input: '122-126',
+        qrCodes: qrCodes,
+        shops: withClient,
+        rep: ravi,
+      );
+      expect(range.toAssign.map((q) => q.qrCode), ['QR122', 'QR123', 'QR125', 'QR126']);
+      expect(range.blocked.map((b) => b.code), ['QR124']);
+      expect(range.canApply, isTrue);
+    });
+
+    test('a QR whose shop cannot be found is not assigned either', () {
+      final p = providerWith(FakeSalesRepository());
+      final plan = p.planAssignment(
+        input: '121-122',
+        qrCodes: qrCodes,
+        shops: [shopFor(121)],
+        rep: ravi,
+      );
+      expect(plan.toAssign.map((q) => q.qrCode), ['QR121']);
+      expect(plan.blocked.single.code, 'QR122');
+    });
+
+    test('a placeholder name with different capitals or spaces still counts as free', () {
+      final p = providerWith(FakeSalesRepository());
+      final plan = p.planAssignment(
+        input: '121',
+        qrCodes: qrCodes,
+        shops: [shopFor(121)..shopName = '  demo qr121 '],
+        rep: ravi,
+      );
+      expect(plan.toAssign.map((q) => q.qrCode), ['QR121']);
     });
 
     test('unreadable input is passed through as errors', () {
@@ -185,6 +239,7 @@ void main() {
       final plan = p.planAssignment(
         input: '121, xyz',
         qrCodes: qrCodes,
+        shops: shops,
         rep: ravi,
       );
       expect(plan.parseErrors, isNotEmpty);
@@ -198,7 +253,7 @@ void main() {
       final p = providerWith(repo);
       final plan = p.planAssignment(
         input: '121-123',
-        qrCodes: qrCodes,
+        qrCodes: qrCodes, shops: shops,
         rep: ravi,
       );
       final count = await p.applyAssignment(plan, ravi);
@@ -211,7 +266,7 @@ void main() {
     test('writes nothing when there is nothing to assign', () async {
       final repo = FakeSalesRepository();
       final p = providerWith(repo);
-      final plan = p.planAssignment(input: '900', qrCodes: qrCodes, rep: ravi);
+      final plan = p.planAssignment(input: '900', qrCodes: qrCodes, shops: shops, rep: ravi);
       expect(await p.applyAssignment(plan, ravi), 0);
       expect(repo.calls, isEmpty);
     });

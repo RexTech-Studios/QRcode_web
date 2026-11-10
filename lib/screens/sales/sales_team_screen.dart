@@ -218,30 +218,38 @@ class _TeamSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        // A Wrap, so on a narrow phone the count and the buttons stack
+        // instead of running off the edge.
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          runSpacing: 4,
           children: [
-            Expanded(
-              child: Text(
-                '${sales.users.length} sales ${sales.users.length == 1 ? 'person' : 'people'}',
-                style: const TextStyle(
-                  fontSize: 14.5,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-            IconButton(
-              tooltip: 'Refresh',
-              onPressed: sales.loading ? null : sales.load,
-              icon: const Icon(
-                Icons.refresh_rounded,
+            Text(
+              '${sales.users.length} sales ${sales.users.length == 1 ? 'person' : 'people'}',
+              style: const TextStyle(
+                fontSize: 14.5,
                 color: AppColors.textSecondary,
               ),
             ),
-            const SizedBox(width: 4),
-            ElevatedButton.icon(
-              onPressed: () => _add(context),
-              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-              label: const Text('Add sales person'),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Refresh',
+                  onPressed: sales.loading ? null : sales.load,
+                  icon: const Icon(
+                    Icons.refresh_rounded,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ElevatedButton.icon(
+                  onPressed: () => _add(context),
+                  icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                  label: const Text('Add sales person'),
+                ),
+              ],
             ),
           ],
         ),

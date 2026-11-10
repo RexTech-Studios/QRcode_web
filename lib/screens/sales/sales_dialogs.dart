@@ -326,6 +326,9 @@ class _AddSalesPersonDialogState extends State<AddSalesPersonDialog> {
 // Assign QR numbers
 // ---------------------------------------------------------------------------
 
+/// Hands QR codes to a sales person. The admin ticks the free ones in a list
+/// (only QR codes nobody holds and no client has used are offered), or can
+/// switch to typing numbers, which is checked by the same rules.
 class AssignQrsDialog extends StatefulWidget {
   final SalesUser rep;
   const AssignQrsDialog({super.key, required this.rep});
@@ -335,19 +338,29 @@ class AssignQrsDialog extends StatefulWidget {
 }
 
 class _AssignQrsDialogState extends State<AssignQrsDialog> {
-  final _input = TextEditingController();
+  final _typed = TextEditingController();
+  final _filter = TextEditingController();
+  final Set<int> _selected = {};
+  bool _typing = false;
   bool _saving = false;
   String? _error;
 
   @override
   void dispose() {
-    _input.dispose();
+    _typed.dispose();
+    _filter.dispose();
     super.dispose();
   }
 
+  /// What the plan is worked out from: the ticked boxes, written as ranges, or
+  /// whatever was typed.
+  String get _inputText =>
+      _typing ? _typed.text : qrRangesInputText(toQrRanges(_selected));
+
   AssignPlan _plan() => context.read<SalesAdminProvider>().planAssignment(
-    input: _input.text,
+    input: _inputText,
     qrCodes: context.read<QrProvider>().qrCodes,
+    shops: context.read<ShopProvider>().shops,
     rep: widget.rep,
   );
 
@@ -376,12 +389,22 @@ class _AssignQrsDialogState extends State<AssignQrsDialog> {
     return '${items.take(max).join(', ')} and ${items.length - max} more';
   }
 
+  void _switchToTyping() {
+    setState(() {
+      // Start from what is already ticked, so nothing is lost.
+      if (_typed.text.trim().isEmpty && _selected.isNotEmpty) {
+        _typed.text = qrRangesInputText(toQrRanges(_selected));
+      }
+      _typing = true;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Rebuilds on every keystroke, and when the provider changes.
+    // Rebuilds on every change, and when the provider changes.
     context.watch<SalesAdminProvider>();
     final plan = _plan();
-    final hasInput = _input.text.trim().isNotEmpty;
+    final hasInput = _inputText.trim().isNotEmpty;
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -396,25 +419,7 @@ class _AssignQrsDialogState extends State<AssignQrsDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const FieldLabel('QR numbers'),
-              TextField(
-                controller: _input,
-                enabled: !_saving,
-                autofocus: true,
-                minLines: 2,
-                maxLines: 4,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  hintText: 'e.g. 121-140, 145, 150',
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Type single numbers, ranges, or both, separated by commas.',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 14),
-              _availablePanel(),
+              if (_typing) ..._typingSection() else _checklistSection(),
               if (hasInput) ...[
                 const SizedBox(height: 14),
                 _line(
@@ -486,113 +491,248 @@ class _AssignQrsDialogState extends State<AssignQrsDialog> {
     );
   }
 
-  static const int _maxChips = 30;
+  // ---- Typing numbers (the second way in) ----
 
-  void _setInput(String text) {
-    setState(() {
-      _input.value = TextEditingValue(
-        text: text,
-        selection: TextSelection.collapsed(offset: text.length),
-      );
-    });
-  }
+  List<Widget> _typingSection() => [
+    const FieldLabel('QR numbers'),
+    TextField(
+      key: const Key('typed-numbers'),
+      controller: _typed,
+      enabled: !_saving,
+      autofocus: true,
+      minLines: 2,
+      maxLines: 4,
+      onChanged: (_) => setState(() {}),
+      decoration: const InputDecoration(hintText: 'e.g. 121-140, 145, 150'),
+    ),
+    const SizedBox(height: 6),
+    const Text(
+      'Type single numbers, ranges, or both, separated by commas. QR codes already used by a client or sold are refused.',
+      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+    ),
+    const SizedBox(height: 6),
+    Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: _saving ? null : () => setState(() => _typing = false),
+        icon: const Icon(Icons.checklist_rounded, size: 18),
+        label: const Text('Pick from the list instead'),
+      ),
+    ),
+  ];
 
-  void _addToInput(String text) {
-    final current = _input.text.trim().replaceAll(RegExp(r'[,;\s]+$'), '');
-    _setInput(current.isEmpty ? text : '$current, $text');
-  }
+  // ---- The checklist (the main way in) ----
 
-  /// The QR numbers nobody holds yet, as one-tap chips, so the admin doesn't
-  /// have to remember which numbers are free.
-  Widget _availablePanel() {
+  Widget _checklistSection() {
     final sales = context.read<SalesAdminProvider>();
-    final ranges = toQrRanges(
-      sales.availableDemoQrNumbers(
-        qrCodes: context.read<QrProvider>().qrCodes,
-        shops: context.read<ShopProvider>().shops,
-      ),
+    final all = sales.availableDemoQrNumbers(
+      qrCodes: context.read<QrProvider>().qrCodes,
+      shops: context.read<ShopProvider>().shops,
     );
-    final total = ranges.fold<int>(0, (sum, r) => sum + r.count);
+    final total = all.length;
+    final filtering = _filter.text.trim().isNotEmpty;
+    final shown = filterQrNumbers(all, _filter.text);
+    final everyShownTicked =
+        shown.isNotEmpty && shown.every(_selected.contains);
+    final someShownTicked = shown.any(_selected.contains);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.primarySoft,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primaryLight),
-      ),
-      child: total == 0
-          ? const Text(
-              'No free demo QR codes left. Generate more, or type a number above.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Available to assign: $total',
-                  style: const TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
+    void toggleShown() => setState(() {
+      if (everyShownTicked) {
+        _selected.removeAll(shown);
+      } else {
+        _selected.addAll(shown);
+      }
+    });
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.primarySoft,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.primaryLight),
+          ),
+          child: total == 0
+              ? const Text(
+                  'No free demo QR codes left. Generate more, or type numbers instead.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
                   ),
-                ),
-                const SizedBox(height: 2),
-                const Text(
-                  'Demo QR codes nobody holds yet. Tap one to add it above.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final n in const [10, 20, 50])
-                      if (total > n)
-                        OutlinedButton(
-                          onPressed: _saving
-                              ? null
-                              : () => _setInput(
-                                  qrRangesInputText(takeFirstQrNumbers(ranges, n)),
-                                ),
-                          child: Text('First $n'),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Available to assign: $total',
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
                         ),
-                    OutlinedButton(
-                      onPressed: _saving
-                          ? null
-                          : () => _setInput(qrRangesInputText(ranges)),
-                      child: Text('All $total'),
+                        Text(
+                          '${_selected.length} selected',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final r in ranges.take(_maxChips))
-                      ActionChip(
-                        label: Text(
-                          r.count > 1 ? '${r.label}  (${r.count})' : r.label,
-                          style: const TextStyle(fontSize: 12.5),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Only QR codes nobody holds and no client has used. Tick the ones to assign.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _filter,
+                      enabled: !_saving,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        hintText: 'Find a free QR (e.g. 15 or 150-170)',
+                        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                        suffixIcon: filtering
+                            ? IconButton(
+                                tooltip: 'Clear filter',
+                                icon: const Icon(Icons.close_rounded, size: 18),
+                                onPressed: () => setState(_filter.clear),
+                              )
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final n in const [10, 20, 50])
+                          if (total > n)
+                            OutlinedButton(
+                              onPressed: _saving
+                                  ? null
+                                  : () => setState(() {
+                                      _selected
+                                        ..clear()
+                                        ..addAll(all.take(n));
+                                    }),
+                              child: Text('First $n'),
+                            ),
+                        if (_selected.isNotEmpty)
+                          TextButton(
+                            onPressed: _saving
+                                ? null
+                                : () => setState(_selected.clear),
+                            child: const Text('Clear selection'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    if (shown.isEmpty)
+                      const Text(
+                        'No free QR codes match that.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
                         ),
-                        onPressed: _saving ? null : () => _addToInput(r.inputText),
+                      )
+                    else
+                      SizedBox(
+                        // Shorter on a short (phone) screen, so the dialog
+                        // doesn't run far past the bottom.
+                        height: (MediaQuery.sizeOf(context).height * 0.28)
+                            .clamp(150.0, 250.0),
+                        // Material, not a coloured box: the rows paint their
+                        // tap highlight on the nearest Material.
+                        child: Material(
+                          color: Colors.white,
+                          clipBehavior: Clip.antiAlias,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: const BorderSide(color: AppColors.border),
+                          ),
+                          child: Column(
+                            children: [
+                              CheckboxListTile(
+                                dense: true,
+                                tristate: true,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                value: everyShownTicked
+                                    ? true
+                                    : (someShownTicked ? null : false),
+                                onChanged: _saving
+                                    ? null
+                                    : (_) => toggleShown(),
+                                title: Text(
+                                  filtering
+                                      ? 'Select all ${shown.length} shown'
+                                      : 'Select all $total',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                              ),
+                              const Divider(height: 1),
+                              Expanded(
+                                child: ListView.builder(
+                                  itemCount: shown.length,
+                                  itemBuilder: (context, i) {
+                                    final n = shown[i];
+                                    return CheckboxListTile(
+                                      dense: true,
+                                      controlAffinity:
+                                          ListTileControlAffinity.leading,
+                                      value: _selected.contains(n),
+                                      onChanged: _saving
+                                          ? null
+                                          : (v) => setState(() {
+                                              if (v == true) {
+                                                _selected.add(n);
+                                              } else {
+                                                _selected.remove(n);
+                                              }
+                                            }),
+                                      title: Text(
+                                        'QR$n',
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                   ],
                 ),
-                if (ranges.length > _maxChips) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    '+ ${ranges.length - _maxChips} more groups. Use the buttons above or type the numbers.',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ],
-            ),
+        ),
+        const SizedBox(height: 6),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: _saving ? null : _switchToTyping,
+            icon: const Icon(Icons.keyboard_rounded, size: 18),
+            label: const Text('Type numbers instead'),
+          ),
+        ),
+      ],
     );
   }
 

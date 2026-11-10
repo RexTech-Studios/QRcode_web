@@ -3,9 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:reviewqr_admin/models/invoice_model.dart';
 import 'package:reviewqr_admin/models/sales_user_model.dart';
+import 'package:reviewqr_admin/models/shop_model.dart';
 import 'package:reviewqr_admin/providers/qr_provider.dart';
 import 'package:reviewqr_admin/providers/sales_admin_provider.dart';
 import 'package:reviewqr_admin/providers/shop_provider.dart';
+import 'package:reviewqr_admin/screens/sales/sales_dialogs.dart';
 import 'package:reviewqr_admin/screens/sales/sales_team_screen.dart';
 import 'package:reviewqr_admin/services/invoice_pdf.dart';
 
@@ -21,8 +23,9 @@ const turnedOff = SalesUser(
 
 Future<SalesAdminProvider> pumpTeam(
   WidgetTester tester,
-  FakeSalesRepository repo,
-) async {
+  FakeSalesRepository repo, {
+  List<ShopModel>? shops,
+}) async {
   tester.view.physicalSize = const Size(1100, 2200);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -38,7 +41,9 @@ Future<SalesAdminProvider> pumpTeam(
           value: FakeQrProvider([for (var n = 121; n <= 130; n++) qrFor(n)]),
         ),
         ChangeNotifierProvider<ShopProvider>.value(
-          value: FakeShopProvider([for (var n = 121; n <= 130; n++) shopFor(n)]),
+          value: FakeShopProvider(
+            shops ?? [for (var n = 121; n <= 130; n++) shopFor(n)],
+          ),
         ),
       ],
       child: const MaterialApp(home: Scaffold(body: SalesTeamScreen())),
@@ -147,13 +152,163 @@ void main() {
       expect(sales.userById('u1')?.active, isFalse);
     });
 
-    testWidgets('assigning a mix of good and bad numbers previews before writing', (tester) async {
-      final repo = teamRepo();
-      await pumpTeam(tester, repo);
+    // The free QR codes are 124-130; 121-123 are already held.
 
+    Future<void> openAssign(WidgetTester tester) async {
       await tester.tap(find.widgetWithText(ElevatedButton, 'Assign QRs').first);
       await tester.pumpAndSettle();
-      await tester.enterText(inDialog(find.byType(TextField)), '124-126, 999');
+    }
+
+    Future<void> switchToTyping(WidgetTester tester) async {
+      await tester.tap(find.text('Type numbers instead'));
+      await tester.pumpAndSettle();
+    }
+
+    final typedBox = find.byKey(const Key('typed-numbers'));
+
+    List<ShopModel> shopsWithClient() => [
+      for (var n = 121; n <= 130; n++)
+        n == 124 ? (shopFor(n)..shopName = 'D Squad') : shopFor(n),
+    ];
+
+    ElevatedButton assignButton(WidgetTester tester) => tester.widget<ElevatedButton>(
+      find.descendant(of: find.byType(AlertDialog), matching: find.byType(ElevatedButton)).last,
+    );
+
+    testWidgets('the free QR codes are a checklist with nothing ticked at first', (tester) async {
+      await pumpTeam(tester, teamRepo());
+      await openAssign(tester);
+
+      expect(find.text('Available to assign: 7'), findsOneWidget);
+      expect(find.text('0 selected'), findsOneWidget);
+      expect(find.text('Select all 7'), findsOneWidget);
+      expect(find.text('QR124'), findsOneWidget);
+      expect(find.text('QR121'), findsNothing, reason: 'already held');
+      expect(assignButton(tester).onPressed, isNull);
+    });
+
+    testWidgets('ticking boxes assigns exactly those QR codes', (tester) async {
+      final repo = teamRepo();
+      await pumpTeam(tester, repo);
+      await openAssign(tester);
+
+      await tester.tap(find.text('QR124'));
+      await tester.tap(find.text('QR126'));
+      await tester.pump();
+
+      expect(find.text('2 selected'), findsOneWidget);
+      expect(find.textContaining('Will assign 2 QR codes: QR124, QR126'), findsOneWidget);
+      expect(repo.calls, isEmpty, reason: 'nothing is written until Assign');
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Assign 2'));
+      await tester.pumpAndSettle();
+
+      expect(repo.lastAssigned.map((q) => q.qrCode), ['QR124', 'QR126']);
+      expect(find.text('Assigned 2 QR codes to Ravi.'), findsOneWidget);
+    });
+
+    testWidgets('a box can be un-ticked again', (tester) async {
+      await pumpTeam(tester, teamRepo());
+      await openAssign(tester);
+
+      await tester.tap(find.text('QR125'));
+      await tester.pump();
+      expect(find.text('1 selected'), findsOneWidget);
+      await tester.tap(find.text('QR125'));
+      await tester.pump();
+      expect(find.text('0 selected'), findsOneWidget);
+      expect(assignButton(tester).onPressed, isNull);
+    });
+
+    testWidgets('Select all ticks every free QR, and again clears them', (tester) async {
+      final repo = teamRepo();
+      await pumpTeam(tester, repo);
+      await openAssign(tester);
+
+      await tester.tap(find.text('Select all 7'));
+      await tester.pump();
+      expect(find.text('7 selected'), findsOneWidget);
+      expect(find.widgetWithText(ElevatedButton, 'Assign 7'), findsOneWidget);
+
+      await tester.tap(find.text('Select all 7'));
+      await tester.pump();
+      expect(find.text('0 selected'), findsOneWidget);
+
+      await tester.tap(find.text('Select all 7'));
+      await tester.pump();
+      await tester.tap(find.text('Clear selection'));
+      await tester.pump();
+      expect(find.text('0 selected'), findsOneWidget);
+    });
+
+    testWidgets('a QR already used by a client is not in the list and cannot be typed in', (
+      tester,
+    ) async {
+      await pumpTeam(tester, teamRepo(), shops: shopsWithClient());
+      await openAssign(tester);
+
+      // 121-123 are held, 124 is a real client, so only 125-130 are free.
+      expect(find.text('Available to assign: 6'), findsOneWidget);
+      expect(find.text('QR124'), findsNothing);
+      expect(find.text('Select all 6'), findsOneWidget);
+
+      await switchToTyping(tester);
+      await tester.enterText(typedBox, '124');
+      await tester.pump();
+      expect(find.textContaining("Can't assign"), findsOneWidget);
+      expect(find.textContaining('already in use by a client: D Squad'), findsOneWidget);
+      expect(assignButton(tester).onPressed, isNull);
+    });
+
+    testWidgets('the filter narrows the list, and ticks survive changing it', (tester) async {
+      await pumpTeam(tester, teamRepo());
+      await openAssign(tester);
+
+      final filter = inDialog(find.byType(TextField)).first;
+      await tester.enterText(filter, '12');
+      await tester.pump();
+      // 124-129 start with 12; 130 does not.
+      expect(find.text('Select all 6 shown'), findsOneWidget);
+      expect(find.text('QR130'), findsNothing);
+
+      await tester.tap(find.text('Select all 6 shown'));
+      await tester.pump();
+      expect(find.text('6 selected'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Clear filter'));
+      await tester.pump();
+      expect(find.text('6 selected'), findsOneWidget, reason: 'ticks are kept');
+      expect(find.text('Select all 7'), findsOneWidget);
+
+      await tester.enterText(filter, '999');
+      await tester.pump();
+      expect(find.text('No free QR codes match that.'), findsOneWidget);
+      expect(find.text('6 selected'), findsOneWidget);
+    });
+
+    testWidgets('a single number in the filter shows that one QR to tick', (tester) async {
+      final repo = teamRepo();
+      await pumpTeam(tester, repo);
+      await openAssign(tester);
+
+      await tester.enterText(inDialog(find.byType(TextField)).first, '127');
+      await tester.pump();
+      expect(find.text('Select all 1 shown'), findsOneWidget);
+      await tester.tap(find.text('QR127'));
+      await tester.pump();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Assign 1'));
+      await tester.pumpAndSettle();
+
+      expect(repo.lastAssigned.map((q) => q.qrCode), ['QR127']);
+    });
+
+    testWidgets('typing numbers still works, and previews before writing', (tester) async {
+      final repo = teamRepo();
+      await pumpTeam(tester, repo);
+      await openAssign(tester);
+      await switchToTyping(tester);
+
+      await tester.enterText(typedBox, '124-126, 999');
       await tester.pump();
 
       expect(find.textContaining('Will assign 3 QR codes'), findsOneWidget);
@@ -167,50 +322,87 @@ void main() {
       expect(find.text('Assigned 3 QR codes to Ravi.'), findsOneWidget);
     });
 
-    testWidgets('lists the free QR numbers and a tap fills the box', (tester) async {
-      final repo = teamRepo();
-      await pumpTeam(tester, repo);
+    testWidgets('switching to typing keeps what was ticked, and back again works', (tester) async {
+      await pumpTeam(tester, teamRepo());
+      await openAssign(tester);
 
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Assign QRs').first);
-      await tester.pumpAndSettle();
-
-      // 121-123 are already held, so 124-130 are free.
-      expect(find.text('Available to assign: 7'), findsOneWidget);
-      await tester.tap(find.text('QR124 - QR130  (7)'));
+      await tester.tap(find.text('QR124'));
+      await tester.tap(find.text('QR126'));
+      await tester.tap(find.text('QR127'));
       await tester.pump();
+      await switchToTyping(tester);
 
-      final box = tester.widget<TextField>(inDialog(find.byType(TextField)));
-      expect(box.controller!.text, '124-130');
-      expect(find.textContaining('Will assign 7 QR codes'), findsOneWidget);
+      expect(tester.widget<TextField>(typedBox).controller!.text, '124, 126-127');
+
+      await tester.tap(find.text('Pick from the list instead'));
+      await tester.pumpAndSettle();
+      expect(find.text('3 selected'), findsOneWidget);
     });
 
-    testWidgets('a second tap adds to what is already typed', (tester) async {
-      await pumpTeam(tester, teamRepo());
+    testWidgets('the assign dialog fits a phone-sized screen in both modes', (tester) async {
+      tester.view.physicalSize = const Size(360, 740);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
 
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Assign QRs').first);
+      final sales = SalesAdminProvider(teamRepo());
+      await sales.load();
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<SalesAdminProvider>.value(value: sales),
+            ChangeNotifierProvider<QrProvider>.value(
+              value: FakeQrProvider([for (var n = 121; n <= 130; n++) qrFor(n)]),
+            ),
+            ChangeNotifierProvider<ShopProvider>.value(
+              value: FakeShopProvider([for (var n = 121; n <= 130; n++) shopFor(n)]),
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => TextButton(
+                  onPressed: () => showDialog<int>(
+                    context: context,
+                    builder: (_) => AssignQrsDialog(rep: ravi),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
-      await tester.enterText(inDialog(find.byType(TextField)), '125,');
-      await tester.pump();
-      await tester.tap(find.text('QR124 - QR130  (7)'));
-      await tester.pump();
 
-      final box = tester.widget<TextField>(inDialog(find.byType(TextField)));
-      expect(box.controller!.text, '125, 124-130');
+      await tester.tap(find.text('QR124'));
+      await tester.pump();
+      expect(find.text('1 selected'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      // The dialog scrolls on a short screen.
+      await tester.ensureVisible(find.text('Type numbers instead'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Type numbers instead'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('typed-numbers')), '124-126');
+      await tester.pump();
+      expect(find.textContaining('Will assign 3 QR codes'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('a QR that is already sold cannot be assigned again', (tester) async {
       await pumpTeam(tester, teamRepo());
 
       // QR123 was sold by Anu; try to give it to Ravi.
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Assign QRs').first);
-      await tester.pumpAndSettle();
-      await tester.enterText(inDialog(find.byType(TextField)), '123');
+      await openAssign(tester);
+      await switchToTyping(tester);
+      await tester.enterText(typedBox, '123');
       await tester.pump();
 
       expect(find.textContaining("Can't assign"), findsOneWidget);
       expect(find.textContaining('already sold by Anu'), findsOneWidget);
-      final assign = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Assign'));
-      expect(assign.onPressed, isNull);
+      expect(assignButton(tester).onPressed, isNull);
     });
   });
 
@@ -352,7 +544,7 @@ void main() {
     // From the Report tab.
     await tester.tap(find.text('Set price'));
     await tester.pumpAndSettle();
-    await tester.enterText(inDialog(find.byType(TextField)), '750');
+    await tester.enterText(inDialog(find.byType(TextField)).first, '750');
     await tester.tap(find.text('Save price'));
     await tester.pumpAndSettle();
 
@@ -483,13 +675,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Invoice price per QR'), findsOneWidget);
 
-      await tester.enterText(inDialog(find.byType(TextField)), '12.5');
+      await tester.enterText(inDialog(find.byType(TextField)).first, '12.5');
       await tester.tap(find.text('Save price'));
       await tester.pumpAndSettle();
       expect(find.textContaining('whole number'), findsOneWidget);
       expect(repo.invoicePrice, isNull);
 
-      await tester.enterText(inDialog(find.byType(TextField)), '1800');
+      await tester.enterText(inDialog(find.byType(TextField)).first, '1800');
       await tester.tap(find.text('Save price'));
       await tester.pumpAndSettle();
 

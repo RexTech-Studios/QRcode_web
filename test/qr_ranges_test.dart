@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:reviewqr_admin/utils/qr_ranges.dart';
 
 void main() {
+  filterTests();
   group('toQrRanges', () {
     test('groups consecutive numbers and keeps gaps apart', () {
       expect(
@@ -68,6 +69,41 @@ void main() {
       expect(qrNumberOf('qr7'), 7);
       expect(qrNumberOf(''), isNull);
       expect(qrNumberOf('Demo QR121'), isNull);
+    });
+  });
+}
+
+void filterTests() {
+  group('filterQrNumbers', () {
+    final free = [121, 122, 130, 131, 150, 151, 160, 215, 334];
+
+    test('empty returns everything', () {
+      expect(filterQrNumbers(free, ''), free);
+      expect(filterQrNumbers(free, '   '), free);
+    });
+
+    test('digits match numbers that start with them', () {
+      expect(filterQrNumbers(free, '13'), [130, 131]);
+      expect(filterQrNumbers(free, '15'), [150, 151]);
+      expect(filterQrNumbers(free, '2'), [215]);
+      expect(filterQrNumbers(free, '334'), [334]);
+    });
+
+    test('a QR prefix and capitals are fine', () {
+      expect(filterQrNumbers(free, 'QR13'), [130, 131]);
+      expect(filterQrNumbers(free, 'qr 150'), [150]);
+    });
+
+    test('a range keeps the numbers inside it, either way round', () {
+      expect(filterQrNumbers(free, '130-151'), [130, 131, 150, 151]);
+      expect(filterQrNumbers(free, '151-130'), [130, 131, 150, 151]);
+      expect(filterQrNumbers(free, '130 - 131'), [130, 131]);
+    });
+
+    test('nothing matches for text that is not a number or a range', () {
+      expect(filterQrNumbers(free, 'abc'), isEmpty);
+      expect(filterQrNumbers(free, '12x'), isEmpty);
+      expect(filterQrNumbers(free, '999'), isEmpty);
     });
   });
 }

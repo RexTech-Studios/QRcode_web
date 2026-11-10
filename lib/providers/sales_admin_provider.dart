@@ -212,12 +212,18 @@ class SalesAdminProvider extends ChangeNotifier {
   static final RegExp _demoName = RegExp(r'^Demo QR\d+$', caseSensitive: false);
 
   /// Works out what assigning [input] (e.g. "121-140, 145") to [rep] would do.
+  ///
+  /// A QR whose shop has already been set up for a real client (its name is no
+  /// longer the "Demo QR###" placeholder) is never handed out, however it is
+  /// typed: it is already in use.
   AssignPlan planAssignment({
     required String input,
     required List<QRCodeModel> qrCodes,
+    required List<ShopModel> shops,
     required SalesUser rep,
   }) {
     final parsed = parseQrNumbers(input);
+    final shopsById = {for (final s in shops) s.shopId: s};
     final byCode = {
       for (final q in qrCodes)
         if (q.qrCode.isNotEmpty) q.qrCode.toUpperCase(): q,
@@ -237,7 +243,16 @@ class SalesAdminProvider extends ChangeNotifier {
       }
       final existing = assignmentFor(qr.shopId);
       if (existing == null) {
-        toAssign.add(qr);
+        final shop = shopsById[qr.shopId];
+        if (shop == null) {
+          blocked.add(BlockedQr(code, 'its shop could not be found'));
+        } else if (!_demoName.hasMatch(shop.shopName.trim())) {
+          blocked.add(
+            BlockedQr(code, 'already in use by a client: ${shop.shopName.trim()}'),
+          );
+        } else {
+          toAssign.add(qr);
+        }
       } else if (existing.assignedTo == rep.uid) {
         alreadyWithRep.add(code);
       } else if (existing.isSold) {

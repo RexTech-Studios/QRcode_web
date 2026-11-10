@@ -68,3 +68,26 @@ List<QrRange> takeFirstQrNumbers(List<QrRange> ranges, int count) {
   }
   return taken;
 }
+
+/// Narrows [numbers] to what a "find a QR" box asks for:
+///  - empty: everything;
+///  - digits ("15", or "QR15"): numbers that start with them (15, 150-159);
+///  - a range ("150-170"): numbers inside it.
+/// Anything else matches nothing.
+List<int> filterQrNumbers(List<int> numbers, String query) {
+  final q = query.trim().toUpperCase().replaceAll('QR', '').trim();
+  if (q.isEmpty) return numbers;
+
+  final range = RegExp(r'^(\d+)\s*[-\u2013]\s*(\d+)$').firstMatch(q);
+  if (range != null) {
+    final a = int.parse(range.group(1)!);
+    final b = int.parse(range.group(2)!);
+    final lo = a < b ? a : b;
+    final hi = a < b ? b : a;
+    return [for (final n in numbers) if (n >= lo && n <= hi) n];
+  }
+  if (RegExp(r'^\d+$').hasMatch(q)) {
+    return [for (final n in numbers) if ('$n'.startsWith(q)) n];
+  }
+  return const [];
+}
