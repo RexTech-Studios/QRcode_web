@@ -170,6 +170,36 @@ class _TeamSection extends StatelessWidget {
     }
   }
 
+  Future<void> _edit(BuildContext context, SalesUser rep) => showDialog<void>(
+    context: context,
+    builder: (_) => EditSalesPersonDialog(rep: rep),
+  );
+
+  Future<void> _delete(BuildContext context, SalesUser rep) async {
+    final sales = context.read<SalesAdminProvider>();
+    final mine = sales.assignments.where((a) => a.assignedTo == rep.uid);
+    final sold = mine.where((a) => a.isSold).length;
+    final unsold = mine.length - sold;
+    final ok = await _confirm(
+      context,
+      title: 'Delete ${rep.name}?',
+      body:
+          '${rep.name} will no longer be able to sign in or see anything. '
+          '${unsold == 0 ? 'They have no QR codes waiting to be set up. ' : '$unsold QR code${unsold == 1 ? '' : 's'} not set up yet will go back to the free list. '}'
+          '${sold == 0 ? '' : '$sold sold QR code${sold == 1 ? '' : 's'} stay in your records. '}'
+          'This cannot be undone. To add them again later, use the same email and password.',
+      action: 'Delete',
+      danger: true,
+    );
+    if (!ok || !context.mounted) return;
+    try {
+      await sales.deleteSalesPerson(rep);
+      if (context.mounted) _snack(context, '${rep.name} deleted.');
+    } catch (e) {
+      if (context.mounted) _snack(context, _msg(e), error: true);
+    }
+  }
+
   Future<void> _toggleActive(BuildContext context, SalesUser rep) async {
     final turningOff = rep.active;
     if (turningOff) {
@@ -278,6 +308,8 @@ class _TeamSection extends StatelessWidget {
                 sold: sales.soldCountFor(rep.uid),
                 pending: sales.pendingCountFor(rep.uid),
                 onAssign: () => _assign(context, rep),
+                onEdit: () => _edit(context, rep),
+                onDelete: () => _delete(context, rep),
                 onToggleActive: () => _toggleActive(context, rep),
                 onResetPassword: () => _resetPassword(context, rep),
               ),
@@ -293,6 +325,8 @@ class _RepCard extends StatelessWidget {
   final int sold;
   final int pending;
   final VoidCallback onAssign;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
   final VoidCallback onToggleActive;
   final VoidCallback onResetPassword;
 
@@ -302,6 +336,8 @@ class _RepCard extends StatelessWidget {
     required this.sold,
     required this.pending,
     required this.onAssign,
+    required this.onEdit,
+    required this.onDelete,
     required this.onToggleActive,
     required this.onResetPassword,
   });
@@ -388,6 +424,17 @@ class _RepCard extends StatelessWidget {
                 ),
               ),
               OutlinedButton.icon(
+                onPressed: onEdit,
+                icon: const Icon(Icons.edit_rounded, size: 18),
+                label: const Text('Edit'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+              OutlinedButton.icon(
                 onPressed: onResetPassword,
                 icon: const Icon(Icons.lock_reset_rounded, size: 18),
                 label: const Text('Reset password'),
@@ -415,6 +462,18 @@ class _RepCard extends StatelessWidget {
                   foregroundColor: rep.active
                       ? AppColors.danger
                       : AppColors.primary,
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                label: const Text('Delete'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  foregroundColor: AppColors.danger,
                 ),
               ),
             ],
@@ -557,6 +616,20 @@ class _AssignedSectionState extends State<_AssignedSection> {
           error: true,
         );
       }
+    }
+  }
+
+  Future<void> _move(Assignment a) async {
+    final provider = context.read<SalesAdminProvider>();
+    final from =
+        provider.userById(a.assignedTo) ??
+        SalesUser(uid: a.assignedTo, name: a.assignedToName, email: '');
+    final count = await showDialog<int>(
+      context: context,
+      builder: (_) => MoveQrsDialog(items: [a], from: from),
+    );
+    if (count != null && count > 0 && mounted) {
+      _snack(context, '${a.qrCode} moved.');
     }
   }
 
@@ -719,6 +792,7 @@ class _AssignedSectionState extends State<_AssignedSection> {
                 invoice: sales.invoiceFor(a.shopId),
                 onInvoice: () => _invoice(a, shopNames[a.shopId]),
                 onUnlock: () => _unlock(a),
+                onMove: () => _move(a),
                 onTakeBack: () => _takeBack(a),
               ),
             ),
@@ -748,6 +822,7 @@ class _AssignmentRow extends StatelessWidget {
   final Invoice? invoice;
   final VoidCallback onInvoice;
   final VoidCallback onUnlock;
+  final VoidCallback onMove;
   final VoidCallback onTakeBack;
 
   const _AssignmentRow({
@@ -756,6 +831,7 @@ class _AssignmentRow extends StatelessWidget {
     required this.invoice,
     required this.onInvoice,
     required this.onUnlock,
+    required this.onMove,
     required this.onTakeBack,
   });
 
@@ -850,6 +926,24 @@ class _AssignmentRow extends StatelessWidget {
                     onPressed: onUnlock,
                     icon: const Icon(Icons.lock_open_rounded, size: 16),
                     label: const Text('Allow edit again'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
+                    ),
+                  ),
+                if (!a.isSold)
+                  OutlinedButton.icon(
+                    onPressed: onMove,
+                    icon: const Icon(Icons.swap_horiz_rounded, size: 16),
+                    label: const Text('Move'),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 14,

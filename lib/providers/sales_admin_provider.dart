@@ -184,6 +184,103 @@ class SalesAdminProvider extends ChangeNotifier {
   Future<void> sendPasswordReset(SalesUser user) =>
       _repo.sendPasswordReset(user.email);
 
+  /// Returns a message if [name] can't be used, otherwise null.
+  static String? validateName(String name) {
+    final n = name.trim();
+    if (n.isEmpty) return 'Enter the sales person\'s name.';
+    if (n.length > 100) return 'The name is too long (100 characters at most).';
+    return null;
+  }
+
+  /// Changes a sales person's name. The name already printed on existing
+  /// invoices is left as it was.
+  Future<void> renameSalesPerson(SalesUser user, String name) async {
+    final problem = validateName(name);
+    if (problem != null) throw SalesException(problem);
+    final clean = name.trim();
+    if (clean == user.name) return;
+    await _repo.renameSalesUser(
+      uid: user.uid,
+      name: clean,
+      assignmentShopIds: [
+        for (final a in _assignments)
+          if (a.assignedTo == user.uid) a.shopId,
+      ],
+    );
+    _users = [
+      for (final u in _users) u.uid == user.uid ? u.copyWith(name: clean) : u,
+    ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    _assignments = [
+      for (final a in _assignments)
+        a.assignedTo == user.uid ? a.copyWith(assignedToName: clean) : a,
+    ];
+    notifyListeners();
+  }
+
+  /// Deletes a sales person. Their QR codes that were not set up yet go back
+  /// to free; the ones already sold stay in the records. Returns how many of
+  /// each, so the screen can say what happened.
+  Future<({int freed, int kept})> deleteSalesPerson(SalesUser user) async {
+    final mine = _assignments.where((a) => a.assignedTo == user.uid).toList();
+    final unsold = [for (final a in mine) if (!a.isSold) a.shopId];
+    await _repo.deleteSalesUser(uid: user.uid, unsoldShopIds: unsold);
+    _users = _users.where((u) => u.uid != user.uid).toList();
+    _assignments = _assignments
+        .where((a) => !(a.assignedTo == user.uid && !a.isSold))
+        .toList();
+    notifyListeners();
+    return (freed: unsold.length, kept: mine.length - unsold.length);
+  }
+
+  /// Takes several QR codes back at once. Sold ones can't be.
+  Future<int> takeBack(List<Assignment> items) async {
+    if (items.isEmpty) return 0;
+    if (items.any((a) => a.isSold)) {
+      throw const SalesException(
+        'A QR that has been sold can\'t be taken back.',
+      );
+    }
+    final ids = {for (final a in items) a.shopId};
+    await _repo.unassignMany(ids.toList());
+    _assignments = _assignments.where((a) => !ids.contains(a.shopId)).toList();
+    notifyListeners();
+    return ids.length;
+  }
+
+  /// Gives these QR codes to another sales person (fixing a wrong
+  /// assignment). Sold ones can't be moved, because the sale belongs to the
+  /// person who made it.
+  Future<int> moveAssignments(List<Assignment> items, SalesUser to) async {
+    if (items.isEmpty) return 0;
+    if (!to.active) {
+      throw const SalesException(
+        'That sales person is turned off. Pick someone who is active.',
+      );
+    }
+    if (items.any((a) => a.isSold)) {
+      throw const SalesException(
+        'A QR that has been sold can\'t be moved to someone else.',
+      );
+    }
+    final moving = items.where((a) => a.assignedTo != to.uid).toList();
+    if (moving.isEmpty) return 0;
+    await _repo.reassign(moving, to);
+    final ids = {for (final a in moving) a.shopId};
+    final now = DateTime.now();
+    _assignments = [
+      for (final a in _assignments)
+        ids.contains(a.shopId)
+            ? a.copyWith(
+                assignedTo: to.uid,
+                assignedToName: to.name,
+                assignedAt: now,
+              )
+            : a,
+    ];
+    notifyListeners();
+    return moving.length;
+  }
+
   // ---- Assigning ----
 
   /// Printed stock still waiting for a sales person: QR codes nobody holds

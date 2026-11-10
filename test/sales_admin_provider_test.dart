@@ -272,6 +272,159 @@ void main() {
     });
   });
 
+  group('fixing mistakes', () {
+    FakeSalesRepository repo() => FakeSalesRepository(
+      users: [ravi, anu, const SalesUser(uid: 'u3', name: 'Old Joe', email: 'j@x.com', active: false)],
+      assignments: [
+        assignmentFor(121), // Ravi, not set up
+        assignmentFor(122), // Ravi, not set up
+        assignmentFor(123, locked: true, soldAt: DateTime(2026, 11, 5)), // Ravi, sold
+        assignmentFor(124, uid: 'u2', name: 'Anu'), // Anu, not set up
+      ],
+    );
+
+    Future<SalesAdminProvider> loaded(FakeSalesRepository r) async {
+      final p = providerWith(r);
+      await p.load();
+      return p;
+    }
+
+    group('rename', () {
+      test('refuses an empty or very long name before writing', () async {
+        final r = repo();
+        final p = await loaded(r);
+        await expectLater(p.renameSalesPerson(ravi, '  '), throwsA(isA<SalesException>()));
+        await expectLater(p.renameSalesPerson(ravi, 'x' * 101), throwsA(isA<SalesException>()));
+        expect(r.calls, isEmpty);
+      });
+
+      test('an unchanged name writes nothing', () async {
+        final r = repo();
+        final p = await loaded(r);
+        await p.renameSalesPerson(ravi, ' Ravi ');
+        expect(r.calls, isEmpty);
+      });
+
+      test('changes the name everywhere it is shown', () async {
+        final r = repo();
+        final p = await loaded(r);
+        await p.renameSalesPerson(ravi, 'Ravindran');
+
+        expect(r.calls.single, 'rename:u1:Ravindran:shop-121,shop-122,shop-123');
+        expect(p.userById('u1')?.name, 'Ravindran');
+        expect(
+          p.assignments.where((a) => a.assignedTo == 'u1').map((a) => a.assignedToName).toSet(),
+          {'Ravindran'},
+        );
+        expect(p.assignmentFor('shop-124')?.assignedToName, 'Anu', reason: "someone else's is untouched");
+      });
+
+      test('a failed write changes nothing on screen', () async {
+        final r = repo()..manageError = Exception('network down');
+        final p = await loaded(r);
+        await expectLater(p.renameSalesPerson(ravi, 'Ravindran'), throwsA(isA<Exception>()));
+        expect(p.userById('u1')?.name, 'Ravi');
+      });
+    });
+
+    group('take back', () {
+      test('several unsold QR codes at once', () async {
+        final r = repo();
+        final p = await loaded(r);
+        final count = await p.takeBack([p.assignmentFor('shop-121')!, p.assignmentFor('shop-122')!]);
+        expect(count, 2);
+        expect(r.calls.single, 'unassignMany:shop-121,shop-122');
+        expect(p.assignmentFor('shop-121'), isNull);
+        expect(p.assignedCountFor('u1'), 1);
+      });
+
+      test('a sold one stops the whole thing and nothing is written', () async {
+        final r = repo();
+        final p = await loaded(r);
+        await expectLater(
+          p.takeBack([p.assignmentFor('shop-121')!, p.assignmentFor('shop-123')!]),
+          throwsA(isA<SalesException>()),
+        );
+        expect(r.calls, isEmpty);
+        expect(p.assignedCountFor('u1'), 3);
+      });
+
+      test('an empty list does nothing', () async {
+        final r = repo();
+        final p = await loaded(r);
+        expect(await p.takeBack([]), 0);
+        expect(r.calls, isEmpty);
+      });
+    });
+
+    group('move', () {
+      test('hands QR codes to another active sales person', () async {
+        final r = repo();
+        final p = await loaded(r);
+        final count = await p.moveAssignments([p.assignmentFor('shop-121')!], anu);
+
+        expect(count, 1);
+        expect(r.calls.single, 'reassign:shop-121->u2');
+        expect(p.assignmentFor('shop-121')?.assignedTo, 'u2');
+        expect(p.assignmentFor('shop-121')?.assignedToName, 'Anu');
+        expect(p.assignedCountFor('u1'), 2);
+        expect(p.assignedCountFor('u2'), 2);
+      });
+
+      test('a sold QR cannot be moved, and nothing is written', () async {
+        final r = repo();
+        final p = await loaded(r);
+        await expectLater(
+          p.moveAssignments([p.assignmentFor('shop-121')!, p.assignmentFor('shop-123')!], anu),
+          throwsA(isA<SalesException>()),
+        );
+        expect(r.calls, isEmpty);
+      });
+
+      test('cannot move to someone who is turned off', () async {
+        final r = repo();
+        final p = await loaded(r);
+        await expectLater(
+          p.moveAssignments([p.assignmentFor('shop-121')!], p.userById('u3')!),
+          throwsA(isA<SalesException>()),
+        );
+        expect(r.calls, isEmpty);
+      });
+
+      test('moving to the person who already has it writes nothing', () async {
+        final r = repo();
+        final p = await loaded(r);
+        expect(await p.moveAssignments([p.assignmentFor('shop-121')!], ravi), 0);
+        expect(r.calls, isEmpty);
+      });
+    });
+
+    group('delete a sales person', () {
+      test('frees the QR codes not set up and keeps the sold ones', () async {
+        final r = repo();
+        final p = await loaded(r);
+        final result = await p.deleteSalesPerson(ravi);
+
+        expect(result.freed, 2);
+        expect(result.kept, 1);
+        expect(r.calls.single, 'deleteUser:u1:shop-121,shop-122');
+        expect(p.userById('u1'), isNull);
+        expect(p.assignmentFor('shop-121'), isNull);
+        expect(p.assignmentFor('shop-122'), isNull);
+        expect(p.assignmentFor('shop-123'), isNotNull, reason: 'the record of the sale stays');
+        expect(p.assignmentFor('shop-124'), isNotNull, reason: "someone else's is untouched");
+      });
+
+      test('a failure leaves the person and their QR codes as they were', () async {
+        final r = repo()..manageError = Exception('network down');
+        final p = await loaded(r);
+        await expectLater(p.deleteSalesPerson(ravi), throwsA(isA<Exception>()));
+        expect(p.userById('u1'), isNotNull);
+        expect(p.assignedCountFor('u1'), 3);
+      });
+    });
+  });
+
   group('unassign and unlock', () {
     test('a pending QR can be taken back', () async {
       final repo = FakeSalesRepository(assignments: [assignmentFor(121)]);

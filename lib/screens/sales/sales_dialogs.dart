@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/assignment_model.dart';
 import '../../models/sales_user_model.dart';
 import '../../providers/qr_provider.dart';
 import '../../providers/sales_admin_provider.dart';
@@ -754,6 +755,506 @@ class _AssignQrsDialogState extends State<AssignQrsDialog> {
           fontWeight: FontWeight.w600,
         ),
       ),
+    );
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// Fixing mistakes: move QR codes, edit a person
+// ---------------------------------------------------------------------------
+
+Future<bool> _yesNo(
+  BuildContext context, {
+  required String title,
+  required String body,
+  required String action,
+  bool danger = false,
+}) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+      content: Text(body),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          style: danger
+              ? ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.danger,
+                  foregroundColor: Colors.white,
+                )
+              : null,
+          child: Text(action),
+        ),
+      ],
+    ),
+  );
+  return result == true;
+}
+
+int _codeNumber(String code) =>
+    int.tryParse(code.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1 << 30;
+
+/// Gives QR codes that were assigned to the wrong person to someone else.
+/// Pops with how many were moved.
+class MoveQrsDialog extends StatefulWidget {
+  final List<Assignment> items;
+  final SalesUser from;
+  const MoveQrsDialog({super.key, required this.items, required this.from});
+
+  @override
+  State<MoveQrsDialog> createState() => _MoveQrsDialogState();
+}
+
+class _MoveQrsDialogState extends State<MoveQrsDialog> {
+  SalesUser? _to;
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _move() async {
+    final to = _to;
+    if (to == null) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final count = await context.read<SalesAdminProvider>().moveAssignments(
+        widget.items,
+        to,
+      );
+      if (mounted) Navigator.pop(context, count);
+    } on SalesException catch (e) {
+      _fail(e.message);
+    } catch (_) {
+      _fail('Could not move them. Check your connection and try again.');
+    }
+  }
+
+  void _fail(String message) {
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error = message;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final others = [
+      for (final u in context.watch<SalesAdminProvider>().users)
+        if (u.active && u.uid != widget.from.uid) u,
+    ];
+    final codes = [for (final a in widget.items) a.qrCode];
+    final n = widget.items.length;
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text(
+        n == 1 ? 'Move ${codes.first}' : 'Move $n QR codes',
+        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+      ),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              codes.length <= 12
+                  ? '${codes.join(', ')} ${n == 1 ? 'is' : 'are'} with ${widget.from.name} now.'
+                  : '${codes.take(12).join(', ')} and ${n - 12} more are with ${widget.from.name} now.',
+              style: const TextStyle(
+                fontSize: 13.5,
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 14),
+            if (others.isEmpty)
+              const Text(
+                'There is nobody else to move them to. Add another sales person first.',
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+              )
+            else ...[
+              const FieldLabel('Move to'),
+              DropdownButtonFormField<SalesUser>(
+                isExpanded: true,
+                hint: const Text('Choose a sales person'),
+                items: [
+                  for (final u in others)
+                    DropdownMenuItem(
+                      value: u,
+                      child: Text(u.name, overflow: TextOverflow.ellipsis),
+                    ),
+                ],
+                onChanged: _busy ? null : (u) => setState(() => _to = u),
+              ),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _error!,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.danger,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: (_busy || _to == null) ? null : _move,
+          child: _busy
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : Text(n == 1 ? 'Move' : 'Move $n'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Change a sales person's name, and fix their QR codes: take wrongly
+/// assigned ones back or move them to someone else.
+class EditSalesPersonDialog extends StatefulWidget {
+  final SalesUser rep;
+  const EditSalesPersonDialog({super.key, required this.rep});
+
+  @override
+  State<EditSalesPersonDialog> createState() => _EditSalesPersonDialogState();
+}
+
+class _EditSalesPersonDialogState extends State<EditSalesPersonDialog> {
+  late final TextEditingController _name = TextEditingController(
+    text: widget.rep.name,
+  );
+  final Set<String> _picked = {};
+  bool _busy = false;
+  String? _message;
+  bool _isError = false;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  void _say(String text, {bool error = false}) {
+    if (!mounted) return;
+    setState(() {
+      _message = text;
+      _isError = error;
+    });
+  }
+
+  String _errorText(Object e) => e is SalesException
+      ? e.message
+      : 'Something went wrong. Check your connection and try again.';
+
+  Future<void> _saveName(SalesUser rep) async {
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      await context.read<SalesAdminProvider>().renameSalesPerson(
+        rep,
+        _name.text,
+      );
+      _say('Name saved.');
+    } catch (e) {
+      _say(_errorText(e), error: true);
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
+  Future<void> _takeBack(List<Assignment> items) async {
+    final ok = await _yesNo(
+      context,
+      title: items.length == 1
+          ? 'Take back ${items.first.qrCode}?'
+          : 'Take back ${items.length} QR codes?',
+      body:
+          'They will no longer be with ${widget.rep.name} and go back to the free list. You can assign them again later.',
+      action: 'Take back',
+      danger: true,
+    );
+    if (!ok || !mounted) return;
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      final count = await context.read<SalesAdminProvider>().takeBack(items);
+      _picked.clear();
+      _say('Took back $count QR code${count == 1 ? '' : 's'}.');
+    } catch (e) {
+      _say(_errorText(e), error: true);
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
+  Future<void> _move(SalesUser rep, List<Assignment> items) async {
+    final count = await showDialog<int>(
+      context: context,
+      builder: (_) => MoveQrsDialog(items: items, from: rep),
+    );
+    if (count == null || !mounted) return;
+    _picked.clear();
+    _say(
+      count == 0
+          ? 'Nothing needed moving.'
+          : 'Moved $count QR code${count == 1 ? '' : 's'}.',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sales = context.watch<SalesAdminProvider>();
+    final rep = sales.userById(widget.rep.uid) ?? widget.rep;
+    final shopNames = {
+      for (final s in context.watch<ShopProvider>().shops) s.shopId: s.shopName,
+    };
+    final mine = [
+      for (final a in sales.assignments)
+        if (a.assignedTo == rep.uid) a,
+    ]..sort((a, b) => _codeNumber(a.qrCode).compareTo(_codeNumber(b.qrCode)));
+    final unsold = [for (final a in mine) if (!a.isSold) a];
+    _picked.retainAll({for (final a in unsold) a.shopId});
+    final picked = [for (final a in unsold) if (_picked.contains(a.shopId)) a];
+    final allPicked = unsold.isNotEmpty && picked.length == unsold.length;
+    final nameChanged =
+        _name.text.trim().isNotEmpty && _name.text.trim() != rep.name;
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text(
+        'Edit ${rep.name}',
+        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+      ),
+      content: SizedBox(
+        width: 460,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const FieldLabel('Name'),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      key: const Key('edit-name'),
+                      controller: _name,
+                      enabled: !_busy,
+                      maxLength: 100,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(counterText: ''),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: ElevatedButton(
+                      onPressed: (_busy || !nameChanged)
+                          ? null
+                          : () => _saveName(rep),
+                      child: const Text('Save name'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Login email: ${rep.email}. To use a different email, delete this person and add them again.',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Assigned QR codes (${mine.length})',
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              if (mine.isEmpty)
+                const Text(
+                  'No QR codes are assigned to this person.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                )
+              else ...[
+                const Text(
+                  'Tick the ones that were assigned by mistake, then move them to the right person or take them back. Sold QR codes can\'t be changed.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: (MediaQuery.sizeOf(context).height * 0.28).clamp(
+                    150.0,
+                    260.0,
+                  ),
+                  child: Material(
+                    color: Colors.white,
+                    clipBehavior: Clip.antiAlias,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: const BorderSide(color: AppColors.border),
+                    ),
+                    child: Column(
+                      children: [
+                        if (unsold.isNotEmpty) ...[
+                          CheckboxListTile(
+                            dense: true,
+                            tristate: true,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            value: allPicked
+                                ? true
+                                : (picked.isEmpty ? false : null),
+                            onChanged: _busy
+                                ? null
+                                : (_) => setState(() {
+                                    if (allPicked) {
+                                      _picked.clear();
+                                    } else {
+                                      _picked.addAll([
+                                        for (final a in unsold) a.shopId,
+                                      ]);
+                                    }
+                                  }),
+                            title: Text(
+                              'Select all ${unsold.length} not set up',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13.5,
+                              ),
+                            ),
+                          ),
+                          const Divider(height: 1),
+                        ],
+                        Expanded(
+                          child: ListView.builder(
+                            itemCount: mine.length,
+                            itemBuilder: (context, i) {
+                              final a = mine[i];
+                              final shop = shopNames[a.shopId] ?? '';
+                              if (a.isSold) {
+                                return ListTile(
+                                  dense: true,
+                                  enabled: false,
+                                  leading: const Icon(
+                                    Icons.lock_outline_rounded,
+                                    size: 20,
+                                  ),
+                                  title: Text(a.qrCode),
+                                  subtitle: Text(
+                                    shop.isEmpty ? 'Sold' : 'Sold - $shop',
+                                  ),
+                                );
+                              }
+                              return CheckboxListTile(
+                                dense: true,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                value: _picked.contains(a.shopId),
+                                onChanged: _busy
+                                    ? null
+                                    : (v) => setState(() {
+                                        if (v == true) {
+                                          _picked.add(a.shopId);
+                                        } else {
+                                          _picked.remove(a.shopId);
+                                        }
+                                      }),
+                                title: Text(a.qrCode),
+                                subtitle: Text(
+                                  shop.isEmpty ? 'Not set up yet' : shop,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (picked.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _busy ? null : () => _move(rep, picked),
+                        icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                        label: Text('Move ${picked.length}...'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _busy ? null : () => _takeBack(picked),
+                        icon: const Icon(Icons.undo_rounded, size: 18),
+                        label: Text('Take back ${picked.length}'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.danger,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+              if (_message != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _message!,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: _isError ? AppColors.danger : AppColors.primaryDark,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        ElevatedButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text('Done'),
+        ),
+      ],
     );
   }
 }

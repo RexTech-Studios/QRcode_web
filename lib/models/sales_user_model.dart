@@ -35,9 +35,9 @@ class SalesUser {
     );
   }
 
-  SalesUser copyWith({bool? active}) => SalesUser(
+  SalesUser copyWith({bool? active, String? name}) => SalesUser(
     uid: uid,
-    name: name,
+    name: name ?? this.name,
     email: email,
     role: role,
     active: active ?? this.active,

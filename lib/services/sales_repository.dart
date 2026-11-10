@@ -38,12 +38,35 @@ abstract class SalesRepository {
   Future<void> setUserActive(String uid, bool active);
   Future<void> sendPasswordReset(String email);
 
+  /// Changes the sales person's name, and the name copied onto each of their
+  /// assignments ([assignmentShopIds]) so the lists stay consistent.
+  Future<void> renameSalesUser({
+    required String uid,
+    required String name,
+    required List<String> assignmentShopIds,
+  });
+
+  /// Removes the sales person's record, after removing the assignments in
+  /// [unsoldShopIds]. Their login can no longer open anything (the security
+  /// rules need the record). Assignments that were sold are left alone, as
+  /// the record of the sale.
+  Future<void> deleteSalesUser({
+    required String uid,
+    required List<String> unsoldShopIds,
+  });
+
   Future<List<Assignment>> fetchAllAssignments();
   Future<List<Assignment>> fetchAssignmentsFor(String uid);
 
   /// Creates (or replaces) one assignment per QR code, for [rep].
   Future<void> assign(List<QRCodeModel> qrCodes, SalesUser rep);
   Future<void> unassign(String shopId);
+
+  /// Takes several QR codes back at once.
+  Future<void> unassignMany(List<String> shopIds);
+
+  /// Hands these assignments to [to] (admin fixing a wrong assignment).
+  Future<void> reassign(List<Assignment> assignments, SalesUser to);
   Future<void> setLocked(String shopId, bool locked);
 
   Future<ShopModel?> fetchShop(String shopId);
@@ -179,6 +202,36 @@ class FirestoreSalesRepository implements SalesRepository {
   Future<void> sendPasswordReset(String email) =>
       AuthService.sendPasswordReset(email);
 
+  // A batch holds at most 500 writes.
+  static const int _chunk = 400;
+
+  @override
+  Future<void> renameSalesUser({
+    required String uid,
+    required String name,
+    required List<String> assignmentShopIds,
+  }) async {
+    await _users.doc(uid).update({'name': name});
+    for (var i = 0; i < assignmentShopIds.length; i += _chunk) {
+      final batch = _db.batch();
+      for (final id in assignmentShopIds.skip(i).take(_chunk)) {
+        batch.update(_assignments.doc(id), {'assignedToName': name});
+      }
+      await batch.commit();
+    }
+  }
+
+  @override
+  Future<void> deleteSalesUser({
+    required String uid,
+    required List<String> unsoldShopIds,
+  }) async {
+    // Assignments first: if this stops part-way the person still exists and
+    // the delete can simply be tried again.
+    await unassignMany(unsoldShopIds);
+    await _users.doc(uid).delete();
+  }
+
   // ---- Login creation through the Identity Toolkit REST API ----
   //
   // Signing a new user up with the Firebase SDK would sign the admin out.
@@ -313,6 +366,32 @@ class FirestoreSalesRepository implements SalesRepository {
 
   @override
   Future<void> unassign(String shopId) => _assignments.doc(shopId).delete();
+
+  @override
+  Future<void> unassignMany(List<String> shopIds) async {
+    for (var i = 0; i < shopIds.length; i += _chunk) {
+      final batch = _db.batch();
+      for (final id in shopIds.skip(i).take(_chunk)) {
+        batch.delete(_assignments.doc(id));
+      }
+      await batch.commit();
+    }
+  }
+
+  @override
+  Future<void> reassign(List<Assignment> assignments, SalesUser to) async {
+    for (var i = 0; i < assignments.length; i += _chunk) {
+      final batch = _db.batch();
+      for (final a in assignments.skip(i).take(_chunk)) {
+        batch.update(_assignments.doc(a.shopId), {
+          'assignedTo': to.uid,
+          'assignedToName': to.name,
+          'assignedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+    }
+  }
 
   @override
   Future<void> setLocked(String shopId, bool locked) =>

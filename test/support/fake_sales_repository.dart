@@ -14,6 +14,7 @@ class FakeSalesRepository implements SalesRepository {
 
   Object? saveError;
   Object? createError;
+  Object? manageError;
   int fetchAllAssignmentsCalls = 0;
   final List<String> calls = [];
   List<QRCodeModel> lastAssigned = [];
@@ -99,6 +100,56 @@ class FakeSalesRepository implements SalesRepository {
   Future<void> unassign(String shopId) async {
     calls.add('unassign:$shopId');
     assignments.removeWhere((a) => a.shopId == shopId);
+  }
+
+  @override
+  Future<void> unassignMany(List<String> shopIds) async {
+    calls.add('unassignMany:${shopIds.join(',')}');
+    if (manageError != null) throw manageError!;
+    assignments.removeWhere((a) => shopIds.contains(a.shopId));
+  }
+
+  @override
+  Future<void> reassign(List<Assignment> items, SalesUser to) async {
+    calls.add('reassign:${items.map((a) => a.shopId).join(',')}->${to.uid}');
+    if (manageError != null) throw manageError!;
+    for (final item in items) {
+      final i = assignments.indexWhere((a) => a.shopId == item.shopId);
+      if (i >= 0) {
+        assignments[i] = assignments[i].copyWith(
+          assignedTo: to.uid,
+          assignedToName: to.name,
+        );
+      }
+    }
+  }
+
+  @override
+  Future<void> renameSalesUser({
+    required String uid,
+    required String name,
+    required List<String> assignmentShopIds,
+  }) async {
+    calls.add('rename:$uid:$name:${assignmentShopIds.join(',')}');
+    if (manageError != null) throw manageError!;
+    final i = users.indexWhere((u) => u.uid == uid);
+    if (i >= 0) users[i] = users[i].copyWith(name: name);
+    for (var j = 0; j < assignments.length; j++) {
+      if (assignments[j].assignedTo == uid) {
+        assignments[j] = assignments[j].copyWith(assignedToName: name);
+      }
+    }
+  }
+
+  @override
+  Future<void> deleteSalesUser({
+    required String uid,
+    required List<String> unsoldShopIds,
+  }) async {
+    calls.add('deleteUser:$uid:${unsoldShopIds.join(',')}');
+    if (manageError != null) throw manageError!;
+    assignments.removeWhere((a) => unsoldShopIds.contains(a.shopId));
+    users.removeWhere((u) => u.uid == uid);
   }
 
   @override

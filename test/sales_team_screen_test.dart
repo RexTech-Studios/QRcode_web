@@ -406,6 +406,207 @@ void main() {
     });
   });
 
+  group('Edit and delete a sales person', () {
+    // Ravi: 121 not set up, 122 sold. Anu: 123 sold. Old Joe is turned off.
+    Future<void> openEdit(WidgetTester tester) async {
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Edit').first);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('every card has Edit and Delete', (tester) async {
+      await pumpTeam(tester, teamRepo());
+      expect(find.text('Edit'), findsNWidgets(3));
+      expect(find.text('Delete'), findsNWidgets(3));
+    });
+
+    testWidgets('deleting asks first and says what will happen', (tester) async {
+      final repo = teamRepo();
+      final sales = await pumpTeam(tester, repo);
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Delete').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Delete Ravi?'), findsOneWidget);
+      expect(find.textContaining('1 QR code not set up yet will go back to the free list'), findsOneWidget);
+      expect(find.textContaining('1 sold QR code stay in your records'), findsOneWidget);
+      expect(repo.calls, isEmpty, reason: 'nothing until confirmed');
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(sales.userById('u1'), isNotNull);
+      expect(repo.calls, isEmpty);
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Delete').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Delete'));
+      await tester.pumpAndSettle();
+
+      expect(repo.calls, ['deleteUser:u1:shop-121']);
+      expect(sales.userById('u1'), isNull);
+      expect(find.text('Ravi deleted.'), findsOneWidget);
+      expect(find.text('2 sales people'), findsOneWidget);
+    });
+
+    testWidgets('edit shows the name and the QR codes, with sold ones locked out', (tester) async {
+      await pumpTeam(tester, teamRepo());
+      await openEdit(tester);
+
+      expect(find.text('Edit Ravi'), findsOneWidget);
+      expect(tester.widget<TextField>(find.byKey(const Key('edit-name'))).controller!.text, 'Ravi');
+      expect(find.text('Assigned QR codes (2)'), findsOneWidget);
+      expect(find.text('QR121'), findsWidgets);
+      expect(find.textContaining('Sold'), findsWidgets);
+      // Only the unsold one can be ticked.
+      expect(find.byType(CheckboxListTile), findsNWidgets(2), reason: 'select-all and QR121');
+      final save = tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Save name'));
+      expect(save.onPressed, isNull, reason: 'nothing changed yet');
+    });
+
+    testWidgets('renaming saves and updates the card', (tester) async {
+      final repo = teamRepo();
+      await pumpTeam(tester, repo);
+      await openEdit(tester);
+
+      await tester.enterText(find.byKey(const Key('edit-name')), 'Ravindran');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Save name'));
+      await tester.pumpAndSettle();
+
+      expect(repo.calls.single, startsWith('rename:u1:Ravindran'));
+      expect(find.text('Name saved.'), findsOneWidget);
+      expect(find.text('Edit Ravindran'), findsOneWidget);
+    });
+
+    testWidgets('a QR given to the wrong person can be taken back', (tester) async {
+      final repo = teamRepo();
+      final sales = await pumpTeam(tester, repo);
+      await openEdit(tester);
+
+      await tester.tap(find.text('QR121'));
+      await tester.pump();
+      await tester.tap(find.text('Take back 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('Take back QR121?'), findsOneWidget);
+      expect(repo.calls, isEmpty);
+
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Take back'));
+      await tester.pumpAndSettle();
+
+      expect(repo.calls, ['unassignMany:shop-121']);
+      expect(sales.assignmentFor('shop-121'), isNull);
+      expect(find.text('Took back 1 QR code.'), findsOneWidget);
+      expect(find.text('Assigned QR codes (1)'), findsOneWidget);
+    });
+
+    testWidgets('a QR given to the wrong person can be moved to the right one', (tester) async {
+      final repo = teamRepo();
+      final sales = await pumpTeam(tester, repo);
+      await openEdit(tester);
+
+      await tester.tap(find.text('QR121'));
+      await tester.pump();
+      await tester.tap(find.text('Move 1...'));
+      await tester.pumpAndSettle();
+      expect(find.text('Move QR121'), findsOneWidget);
+      final move = find.widgetWithText(ElevatedButton, 'Move');
+      expect(tester.widget<ElevatedButton>(move).onPressed, isNull, reason: 'pick someone first');
+
+      await tester.tap(find.byType(DropdownButtonFormField<SalesUser>));
+      await tester.pumpAndSettle();
+      // Only active people other than Ravi are offered: Anu, not Old Joe.
+      expect(find.byType(DropdownMenuItem<SalesUser>), findsOneWidget);
+      await tester.tap(find.text('Anu').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Move'));
+      await tester.pumpAndSettle();
+
+      expect(repo.calls, ['reassign:shop-121->u2']);
+      expect(sales.assignmentFor('shop-121')?.assignedTo, 'u2');
+      expect(find.text('Moved 1 QR code.'), findsOneWidget);
+      expect(find.text('Assigned QR codes (1)'), findsOneWidget);
+    });
+
+    testWidgets('Select all ticks every QR that is not set up', (tester) async {
+      await pumpTeam(tester, teamRepo());
+      await openEdit(tester);
+
+      await tester.tap(find.text('Select all 1 not set up'));
+      await tester.pump();
+      expect(find.text('Take back 1'), findsOneWidget);
+      await tester.tap(find.text('Select all 1 not set up'));
+      await tester.pump();
+      expect(find.text('Take back 1'), findsNothing);
+    });
+
+    testWidgets('a person with no QR codes says so', (tester) async {
+      await pumpTeam(tester, teamRepo());
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Edit').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit Old Joe'), findsOneWidget);
+      expect(find.text('No QR codes are assigned to this person.'), findsOneWidget);
+    });
+
+    testWidgets('the Assigned QRs tab can move a QR to someone else too', (tester) async {
+      final repo = teamRepo();
+      final sales = await pumpTeam(tester, repo);
+      await tester.tap(find.text('Assigned QRs'));
+      await tester.pumpAndSettle();
+
+      // Only QR121 is not set up, so it is the only one that can move.
+      expect(find.text('Move'), findsOneWidget);
+      await tester.tap(find.text('Move'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(DropdownButtonFormField<SalesUser>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Anu').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Move'));
+      await tester.pumpAndSettle();
+
+      expect(sales.assignmentFor('shop-121')?.assignedToName, 'Anu');
+      expect(find.text('QR121 moved.'), findsOneWidget);
+    });
+
+    testWidgets('the edit dialog fits a phone-sized screen', (tester) async {
+      tester.view.physicalSize = const Size(360, 740);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final sales = SalesAdminProvider(teamRepo());
+      await sales.load();
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<SalesAdminProvider>.value(value: sales),
+            ChangeNotifierProvider<ShopProvider>.value(
+              value: FakeShopProvider([for (var n = 121; n <= 130; n++) shopFor(n)]),
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => TextButton(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => const EditSalesPersonDialog(rep: ravi),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('QR121'));
+      await tester.pump();
+      expect(find.text('Take back 1'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('Assigned QRs tab', () {
     Future<void> openAssigned(WidgetTester tester) async {
       await tester.tap(find.text('Assigned QRs'));

@@ -181,6 +181,68 @@ describe('admin', () => {
   });
 });
 
+describe('admin: fixing mistakes', () => {
+  test('can move an unsold assignment to another sales person', async () => {
+    const db = admin();
+    await assertSucceeds(updateDoc(doc(db, 'assignments/shopA'), {
+      assignedTo: OTHER_REP, assignedToName: 'Bob', assignedAt: serverTimestamp(),
+    }));
+    // The new owner sees it; the old one no longer does.
+    await assertSucceeds(getDoc(doc(as(OTHER_REP), 'assignments/shopA')));
+    await assertFails(getDoc(doc(as(REP), 'assignments/shopA')));
+  });
+
+  test('can take assignments back in one batch', async () => {
+    const db = admin();
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'assignments/shopA'));
+    batch.delete(doc(db, 'assignments/shopB'));
+    await assertSucceeds(batch.commit());
+    await assertFails(getDoc(doc(as(REP), 'assignments/shopA')));
+  });
+
+  test('can rename a sales person and the name on their assignments', async () => {
+    const db = admin();
+    const batch = writeBatch(db);
+    batch.update(doc(db, `users/${REP}`), { name: 'Alice Mary' });
+    batch.update(doc(db, 'assignments/shopA'), { assignedToName: 'Alice Mary' });
+    await assertSucceeds(batch.commit());
+    const user = (await getDoc(doc(db, `users/${REP}`))).data();
+    assert.equal(user.name, 'Alice Mary');
+    assert.equal(user.role, 'sales');
+  });
+
+  test('deleting a sales person removes all of their access, immediately', async () => {
+    const db = admin();
+    // Before: they can read their own assignment and edit it.
+    await assertSucceeds(getDoc(doc(as(REP), 'assignments/shopA')));
+
+    await assertSucceeds(deleteDoc(doc(db, 'assignments/shopA')));
+    await assertSucceeds(deleteDoc(doc(db, `users/${REP}`)));
+
+    // Their login still exists in Auth, but the rules no longer know them.
+    const gone = as(REP);
+    await assertFails(getDocs(query(collection(gone, 'assignments'), where('assignedTo', '==', REP))));
+    await assertFails(getDoc(doc(gone, 'settings/invoice')));
+    await assertFails(getDoc(doc(gone, 'counters/invoices')));
+    await assertFails(getDocs(query(collection(gone, 'invoices'), where('soldByUid', '==', REP))));
+    await assertFails(updateDoc(doc(gone, 'shops/shopA'), {
+      googleSheetsUrl: 'https://docs.google.com/spreadsheets/d/abc',
+    }));
+    await assertFails(getDoc(doc(gone, `users/${OTHER_REP}`)));
+  });
+
+  test('a sales person still cannot do any of these to themselves or others', async () => {
+    const db = as(REP);
+    await assertFails(updateDoc(doc(db, 'assignments/shopA'), { assignedTo: OTHER_REP, assignedToName: 'Bob' }));
+    await assertFails(updateDoc(doc(db, 'assignments/shopB'), { assignedTo: REP, assignedToName: 'Alice' }));
+    await assertFails(deleteDoc(doc(db, 'assignments/shopA')));
+    await assertFails(updateDoc(doc(db, `users/${REP}`), { name: 'Hacker' }));
+    await assertFails(deleteDoc(doc(db, `users/${REP}`)));
+    await assertFails(deleteDoc(doc(db, `users/${OTHER_REP}`)));
+  });
+});
+
 describe('sales person: accounts and visibility', () => {
   test('can read their own user doc but nobody else\'s', async () => {
     await assertSucceeds(getDoc(doc(as(REP), `users/${REP}`)));
