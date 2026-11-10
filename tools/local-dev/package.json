@@ -1,0 +1,14 @@
+{
+  "name": "local-dev",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "emulators": "firebase emulators:start --only auth,firestore --project qrcode-16b68",
+    "seed": "node seed.mjs",
+    "e2e": "node e2e.mjs"
+  },
+  "devDependencies": {
+    "firebase-admin": "^12.6.0",
+    "puppeteer": "^23.6.0"
+  }
+}

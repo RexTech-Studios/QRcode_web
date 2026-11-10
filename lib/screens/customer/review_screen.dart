@@ -32,26 +32,48 @@ class ReviewScreen extends StatefulWidget {
 class _Brand {
   _Brand._();
 
-  static const Color primary = Color(0xFF087A43); // Deep green
-  static const Color secondary = Color(0xFF20B76A); // Fresh green
-  static const Color background = Color(0xFFF5F8F7); // Soft off-white
+  // Gold palette taken from the printed poster/cards.
+  static const Color primary = Color(0xFF9D7644); // Dark gold
+  static const Color secondary = Color(0xFFCC9B52); // Primary gold
+  static const Color background = Color(0xFFFFFDFA); // Cream
   static const Color card = Color(0xFFFFFFFF);
-  static const Color textPrimary = Color(0xFF172033); // Dark navy
-  static const Color textSecondary = Color(0xFF788394); // Muted grey
-  static const Color star = Color(0xFFFFB300); // Golden
-  static const Color starTrack = Color(0xFFE8F3EC);
-  static const Color inputBorder = Color(0xFFE4EAE7);
+  static const Color textPrimary = Color(0xFF1C1917); // Dark text
+  static const Color textSecondary = Color(0xFF70675D); // Warm grey
+  static const Color star = Color(0xFFCC9B52); // Selected star
+  static const Color starActiveBg = Color(0xFFF8EBCF);
+  static const Color starTrack = Color(0xFFF3EBDB); // Light gold
+  static const Color starInactive = Color(0xFFCFC3AE);
+  static const Color inputFill = Color(0xFFFFFDFA);
+  static const Color inputBorder = Color(0xFFE6D9BF);
+  static const Color onGold = Color(0xFF1C1917); // Text/icons on gold buttons
 
   static const LinearGradient headerGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF0A8A4C), Color(0xFF05603A)],
+    colors: [Color(0xFFCC9B52), Color(0xFF9D7644)],
   );
 
   static const LinearGradient buttonGradient = LinearGradient(
     begin: Alignment.centerLeft,
     end: Alignment.centerRight,
-    colors: [Color(0xFF0A8A4C), Color(0xFF05603A)],
+    colors: [
+      Color(0xFFBF8B47),
+      Color(0xFFD9AF76),
+      Color(0xFFC08C48),
+      Color(0xFFDCB278),
+    ],
+    stops: [0.0, 0.35, 0.66, 1.0],
+  );
+
+  // Keeps white header text readable on the lighter gold end of the gradient.
+  static const List<Shadow> headerTextShadow = [
+    Shadow(color: Color(0x40000000), blurRadius: 6, offset: Offset(0, 1)),
+  ];
+
+  static const LinearGradient badgeGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFD9AF76), Color(0xFF9D7644)],
   );
 }
 
@@ -236,7 +258,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
               return SingleChildScrollView(
                 // Dismiss the keyboard on scroll and leave room past the iOS
                 // Safari bottom toolbar / home indicator so nothing is clipped.
-                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 padding: EdgeInsets.only(
                   bottom: MediaQuery.of(context).viewPadding.bottom,
                 ),
@@ -290,8 +313,15 @@ class _ReviewScreenState extends State<ReviewScreen> {
             child: Transform.translate(
               offset: const Offset(0, -34),
               child: Padding(
-                padding: EdgeInsets.fromLTRB(horizontalMargin, 0, horizontalMargin, 24),
-                child: _submitted ? _buildThankYou(isWide) : _buildCard(shop, isWide),
+                padding: EdgeInsets.fromLTRB(
+                  horizontalMargin,
+                  0,
+                  horizontalMargin,
+                  24,
+                ),
+                child: _submitted
+                    ? _buildThankYou(isWide)
+                    : _buildCard(shop, isWide),
               ),
             ),
           ),
@@ -346,6 +376,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
                       letterSpacing: -0.5,
+                      shadows: _Brand.headerTextShadow,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -372,8 +403,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
               "We'd love to hear from you!",
               style: TextStyle(
                 fontSize: 15.5,
-                color: Colors.white.withValues(alpha: 0.9),
-                fontWeight: FontWeight.w400,
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+                shadows: _Brand.headerTextShadow,
               ),
             ),
           ],
@@ -421,10 +453,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
           const SizedBox(height: 6),
           const Text(
             'Tap a star to rate',
-            style: TextStyle(
-              fontSize: 15,
-              color: _Brand.textSecondary,
-            ),
+            style: TextStyle(fontSize: 15, color: _Brand.textSecondary),
           ),
           const SizedBox(height: 24),
           _buildStars(),
@@ -478,7 +507,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
   Widget _buildFeedbackInput(int count) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFFBFDFC),
+        color: _Brand.inputFill,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: _Brand.inputBorder, width: 1.4),
       ),
@@ -550,7 +579,11 @@ class _ReviewScreenState extends State<ReviewScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, color: Color(0xFFC0392B), size: 20),
+          const Icon(
+            Icons.error_outline_rounded,
+            color: Color(0xFFC0392B),
+            size: 20,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -599,7 +632,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                         width: 26,
                         height: 26,
                         child: CircularProgressIndicator(
-                          color: Colors.white,
+                          color: _Brand.onGold,
                           strokeWidth: 2.6,
                         ),
                       )
@@ -611,13 +644,13 @@ class _ReviewScreenState extends State<ReviewScreen> {
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                              color: _Brand.onGold,
                             ),
                           ),
                           SizedBox(width: 10),
                           Icon(
                             Icons.arrow_forward_rounded,
-                            color: Colors.white,
+                            color: _Brand.onGold,
                             size: 22,
                           ),
                         ],
@@ -665,12 +698,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
         : "We're glad you had a great experience! Your feedback has been sent to the team.";
 
     return Container(
-      padding: EdgeInsets.fromLTRB(
-        isWide ? 36 : 26,
-        40,
-        isWide ? 36 : 26,
-        40,
-      ),
+      padding: EdgeInsets.fromLTRB(isWide ? 36 : 26, 40, isWide ? 36 : 26, 40),
       decoration: BoxDecoration(
         color: _Brand.card,
         borderRadius: BorderRadius.circular(30),
@@ -735,11 +763,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
           width: 82,
           height: 82,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF35C06E), Color(0xFF0E7C40)],
-            ),
+            gradient: _Brand.badgeGradient,
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
@@ -801,7 +825,11 @@ class _ReviewScreenState extends State<ReviewScreen> {
       child: const Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.storefront_outlined, color: _Brand.textSecondary, size: 44),
+          Icon(
+            Icons.storefront_outlined,
+            color: _Brand.textSecondary,
+            size: 44,
+          ),
           SizedBox(height: 16),
           Text(
             "We couldn't find this shop. Please ask the business for a new QR code.",
@@ -847,9 +875,7 @@ class _StarButton extends StatelessWidget {
           width: size,
           height: size,
           decoration: BoxDecoration(
-            color: active
-                ? const Color(0xFFFFF4D6)
-                : _Brand.starTrack,
+            color: active ? _Brand.starActiveBg : _Brand.starTrack,
             shape: BoxShape.circle,
           ),
           child: AnimatedScale(
@@ -858,7 +884,7 @@ class _StarButton extends StatelessWidget {
             curve: Curves.easeOutBack,
             child: Icon(
               active ? Icons.star_rounded : Icons.star_outline_rounded,
-              color: active ? _Brand.star : const Color(0xFFBFC7C2),
+              color: active ? _Brand.star : _Brand.starInactive,
               size: size * 0.6,
             ),
           ),

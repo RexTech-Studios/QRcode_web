@@ -170,6 +170,18 @@ class ExportService {
     );
   }
 
+  // ── CSV ──────────────────────────────────────────────────────────────────
+
+  /// Downloads [content] as a CSV. A leading byte-order mark makes Excel read
+  /// it as UTF-8, so names that aren't plain English display correctly.
+  static void downloadCsv({required String content, required String fileName}) {
+    _triggerDownload(
+      content: '﻿$content',
+      fileName: fileName,
+      mimeType: 'text/csv;charset=utf-8',
+    );
+  }
+
   static void _triggerDownload({
     required String content,
     required String fileName,

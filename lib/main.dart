@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import 'providers/navigation_provider.dart';
 import 'providers/qr_provider.dart';
+import 'providers/rep_provider.dart';
+import 'providers/sales_admin_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/shop_provider.dart';
 import 'screens/auth/auth_gate.dart';
@@ -12,6 +14,7 @@ import 'screens/splash/splash_screen.dart';
 import 'services/auth_service.dart';
 import 'services/firebase_service.dart';
 import 'services/hive_service.dart';
+import 'services/sales_repository.dart';
 import 'utils/app_routes.dart';
 import 'utils/app_theme.dart';
 import 'widgets/viewport_compensator.dart';
@@ -58,11 +61,19 @@ class ReviewQrAdminApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        Provider<SalesRepository>(create: (_) => FirestoreSalesRepository()),
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
         // Shops and QR codes load from AuthGate once the admin is confirmed,
         // never here: signed-out visitors and customers must not fetch them.
         ChangeNotifierProvider(create: (_) => ShopProvider()),
         ChangeNotifierProvider(create: (_) => QrProvider()),
+        // Like shops and QR codes, these load from AuthGate after sign-in.
+        ChangeNotifierProvider(
+          create: (context) => SalesAdminProvider(context.read<SalesRepository>()),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => RepProvider(context.read<SalesRepository>()),
+        ),
         ChangeNotifierProvider(
           create: (_) => isReviewRoute ? SettingsProvider() : (SettingsProvider()..loadSettings()),
         ),

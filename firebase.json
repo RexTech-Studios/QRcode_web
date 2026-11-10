@@ -34,7 +34,7 @@
         ]
       },
       {
-        "source": "/app/@(index.html|flutter_service_worker.js|flutter_bootstrap.js|version.json|manifest.json)",
+        "source": "/app/@(index.html|flutter_service_worker.js|flutter_bootstrap.js|main.dart.js|version.json|manifest.json)",
         "headers": [
           { "key": "Cache-Control", "value": "no-cache" }
         ]
@@ -98,5 +98,11 @@
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "auth": { "port": 9099 },
+    "firestore": { "port": 8089 },
+    "ui": { "enabled": false },
+    "singleProjectMode": true
   }
 }

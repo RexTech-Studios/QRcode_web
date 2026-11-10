@@ -1,0 +1,15 @@
+{
+  "name": "bulk-demo-qr",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "template": "node render-template.mjs",
+    "generate": "node generate.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "puppeteer": "^23.6.0",
+    "qrcode": "^1.5.4",
+    "uuid": "^9.0.1"
+  }
+}

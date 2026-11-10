@@ -174,7 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const _Brand(),
                       const SizedBox(height: 22),
                       const Text(
-                        'Admin sign in',
+                        'Sign in to your account',
                         style: TextStyle(
                           fontSize: 21,
                           fontWeight: FontWeight.w800,

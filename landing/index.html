@@ -24,32 +24,29 @@
   // The markup below repeats these values so they exist without JavaScript and
   // for search engines. The script at the end of the page applies this block over
   // them, and tools/test/landing.test.mjs fails if the two ever differ.
-  const CONTACT_PHONE = '+91 95395 06502';
-  const CONTACT_EMAIL = 'prince@rextechstudios.com';
+  const CONTACT_PHONE = '+91 96057 98763';
+  const CONTACT_EMAIL = 'fullstarqr@gmail.com';
   const CONTACT_LOCATION = 'Kochi, Kerala, India';
-  const WHATSAPP_URL = 'https://wa.me/919539506502?text=Hi%2C%20I%27m%20interested%20in%20Full%20Star%20QR';
+  const WHATSAPP_URL = 'https://wa.me/919605798763?text=Hi%2C%20I%27m%20interested%20in%20Full%20Star%20QR';
 
   // When false the footer leaves these out entirely. Turning one on also needs
   // real URLs below: links with an empty url are skipped.
   const SHOW_LEGAL_LINKS = false;
-  const SHOW_SOCIAL_LINKS = false;
+  const SHOW_SOCIAL_LINKS = true;
   const LEGAL_LINKS = [
     { title: 'Privacy Policy', url: '' },
     { title: 'Terms of Service', url: '' },
   ];
   const SOCIAL_LINKS = [
-    { title: 'Facebook', url: '' },
-    { title: 'Instagram', url: '' },
-    { title: 'X (Twitter)', url: '' },
+    { title: 'Facebook', url: 'https://www.facebook.com/share/1F5xRBGkR7/?mibextid=wwXIfr' },
+    { title: 'Instagram', url: 'https://www.instagram.com/fullstarqr/?utm_source=ig_web_button_share_sheet' },
+    { title: 'YouTube', url: 'https://www.youtube.com/@FullstarQR' },
   ];
 
   // COPY_FLAGS. The review page has no private-feedback option today, so the
   // page doesn't claim one. The markup holds the false wording.
   const CLAIM_PRIVATE_FEEDBACK = false;
   const COPY = {
-    shareStep: CLAIM_PRIVATE_FEEDBACK
-      ? 'They can post a Google review or send private feedback.'
-      : 'They can post a Google review in a few taps.',
     phoneSecondaryButton: CLAIM_PRIVATE_FEEDBACK ? 'Send Private Feedback' : 'Add a comment',
   };
 </script>
@@ -230,11 +227,9 @@
     font-size: 12px; font-weight: 600; letter-spacing: 2.8px; white-space: nowrap;
   }
   .eyebrow::before, .eyebrow::after { content: ''; flex: none; width: 24px; height: 1px; background: var(--gold-primary); }
-  /* The heading always stays on one line, shrinking to fit, like FittedBox. */
   h1 {
-    margin-top: 20px; color: var(--text-dark); white-space: nowrap;
+    margin-top: 20px; color: var(--text-dark); max-width: 560px;
     font: 700 var(--h1-size)/1.15 var(--serif); letter-spacing: .0048em;
-    font-size: min(var(--h1-size), calc(min(100cqw, 540px) / 11.32));
   }
   .hero-sub { max-width: 520px; margin-top: 20px; font-size: 17px; line-height: 1.65; }
   .hero-actions { display: flex; flex-wrap: wrap; gap: 14px 16px; margin-top: 36px; }
@@ -309,9 +304,9 @@
   .section-sub { max-width: 620px; margin-top: 14px; font-size: 16px; line-height: 1.65; }
 
   /* How It Works */
-  .steps { display: flex; align-items: flex-start; gap: 28px; margin-top: 50px; }
+  .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 40px; }
   .step {
-    flex: 1 1 0; display: flex; flex-direction: column; align-items: center; min-width: 0; padding: 34px 26px;
+    height: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; min-width: 0; padding: 28px 24px;
     background: #fff; border: 1px solid var(--border-gold-50); border-radius: 20px; box-shadow: var(--soft-shadow);
     transition: transform .22s ease-out, box-shadow .22s ease-out, border-color .22s ease-out;
   }
@@ -319,13 +314,71 @@
   .step-number {
     display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 50%;
     background: var(--cream); border: 1.5px solid var(--gold-primary); color: var(--gold-dark);
-    font-size: 20px; font-weight: 500; transition: box-shadow .22s, color .22s;
+    font: 700 20px var(--serif); transition: box-shadow .22s, color .22s;
   }
   .step:hover .step-number { background: var(--gold-gradient); color: #fff; box-shadow: 0 4px 15px rgba(198, 156, 93, .35); }
   .step-icon { margin-top: 20px; padding: 12px; border-radius: 50%; background: var(--surface-warm); color: var(--gold-dark); }
   .step-icon svg { width: 28px; height: 28px; }
-  .step h3 { margin-top: 18px; color: var(--text-dark); font: 700 22px/1.25 var(--serif); }
+  .step h3 { margin-top: 22px; color: var(--text-dark); font: 700 22px/1.25 var(--serif); }
   .step p { margin-top: 12px; font-size: 14.5px; line-height: 1.65; text-align: center; }
+  .step > p:last-child { margin-bottom: auto; }
+
+  /* How It Works v2: illustrated cards */
+  .step-v2 { padding: 28px 22px 24px; border-radius: 24px; }
+  .step-illustration { display: flex; align-items: center; justify-content: center; width: 100%; height: 115px; margin-top: auto; }
+  .illustration-photo-card { width: 150px; }
+  .illustration-photo-card img {
+    width: 100%; height: auto; display: block; filter: drop-shadow(0 14px 18px rgba(42, 35, 24, .16));
+    mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent), linear-gradient(to bottom, transparent, #000 8%, #000 92%, transparent);
+    mask-composite: intersect; -webkit-mask-composite: source-in;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent), linear-gradient(to bottom, transparent, #000 8%, #000 92%, transparent);
+  }
+  .phone-illustration { position: relative; display: flex; align-items: flex-start; justify-content: center; width: 100%; height: 100%; }
+  .phone-glow {
+    position: absolute; bottom: -40px; left: 50%; width: 220px; height: 190px; transform: translateX(-50%);
+    border-radius: 50%; background: radial-gradient(circle, rgba(223, 186, 119, .3) 0%, rgba(223, 186, 119, 0) 70%);
+  }
+  .mini-phone {
+    position: relative; width: 150px; height: 215px; padding-top: 14px; background: #fffefb;
+    border: 3px solid #342C22; border-bottom: none; border-radius: 24px 24px 0 0;
+    box-shadow: 0 0 0 1.5px var(--border-gold) inset, 0 10px 24px rgba(60, 40, 10, .18);
+    display: flex; flex-direction: column; align-items: center;
+    transform: scale(.52); transform-origin: top center;
+  }
+  .mini-phone-notch { position: absolute; top: 7px; width: 32px; height: 8px; border-radius: 8px; background: #1d1813; }
+  .mini-phone-title { margin-top: 22px; color: var(--text-dark); font: 700 12px/1.2 var(--sans); }
+  .mini-stars { display: flex; gap: 2px; margin-top: 14px; color: var(--gold-primary); }
+  .mini-stars svg { width: 16px; height: 16px; }
+  .mini-stars svg:last-child { color: var(--border-gold); }
+  .mini-input {
+    display: flex; align-items: center; width: 112px; height: 26px; margin-top: 14px; padding: 0 9px;
+    background: #fff; border: 1px solid var(--border-gold-50); border-radius: 7px;
+  }
+  .mini-input span { color: var(--text-subtle); font-size: 9px; }
+  .mini-submit {
+    display: flex; align-items: center; justify-content: center; width: 112px; height: 26px; margin-top: 12px;
+    background: var(--gold-gradient); border-radius: 6px; color: #1F1A12; font: 700 10.5px/1 var(--sans); letter-spacing: .3px;
+  }
+  .info-blocks { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 10px; }
+  .info-block {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 9px; text-align: left;
+    background: var(--surface-warm); border: 1px solid var(--border-gold-50); border-radius: 12px;
+  }
+  .info-text { flex: 1 1 auto; min-width: 0; }
+  .info-heading { display: flex; align-items: center; gap: 6px; color: var(--gold-dark); font-size: 13px; font-weight: 700; }
+  .info-star {
+    display: flex; flex: none; align-items: center; justify-content: center; width: 18px; height: 18px;
+    border-radius: 50%; background: var(--gold-gradient); color: #fff;
+  }
+  .info-star svg { width: 9px; height: 9px; }
+  .info-icon-color { flex: none; width: 28px; height: 36px; }
+  .info-icon-color svg { width: 100%; height: 100%; }
+  .info-block p { margin-top: 3px; font-size: 11.5px; line-height: 1.45; text-align: left; max-width: 190px; }
+  .step-v2 h3 { margin-top: 12px; }
+  @media (max-width: 991.98px) {
+    .step-illustration { height: 100px; }
+    .step { height: auto; }
+  }
 
   /* About */
   .about { background: rgba(250, 246, 238, .5); }
@@ -362,8 +415,8 @@
   .contact-icon svg { width: 22px; height: 22px; }
   .contact-label { margin-top: 12px; color: var(--text-subtle); font-size: 11px; font-weight: 600; letter-spacing: 1.8px; }
   .contact-value { margin-top: 6px; color: var(--text-dark); font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
-  a.contact-item:hover .contact-icon { background: var(--gold-gradient); color: #fff; }
-  a.contact-item:hover .contact-value { color: var(--gold-dark); }
+  .contact-item:hover .contact-icon { background: var(--gold-gradient); color: #fff; }
+  .contact-item:hover .contact-value { color: var(--gold-dark); }
   .contact-sep { flex: none; width: 1px; height: 60px; background: rgba(223, 204, 168, .4); }
 
   /* Footer */
@@ -398,11 +451,12 @@
     .brand-title { font-size: 17px; }
     .hero-inner { flex-direction: column; }
     .hero-text { flex: none; width: 100%; align-items: center; text-align: center; }
+    h1 { max-width: 100%; }
     .hero-sub { font-size: 15px; }
     .hero-actions, .trust { justify-content: center; }
     .hero-visual { flex: none; width: 100%; }
-    .steps { flex-direction: column; align-items: stretch; gap: 20px; }
-    .step { flex: none; }
+    .steps { grid-template-columns: 1fr; gap: 20px; }
+    .step { height: auto; }
     .about-inner { flex-direction: column-reverse; gap: 40px; }
     .about-media, .about-text { flex: none; width: 100%; }
     .about-text { align-items: center; text-align: center; }
@@ -446,6 +500,21 @@
   <symbol id="i-email" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-.4 4.25-7.07 4.42c-.32.2-.74.2-1.06 0L4.4 8.25a.85.85 0 1 1 .9-1.44L12 11l6.7-4.19a.85.85 0 1 1 .9 1.44z"/></symbol>
   <symbol id="i-location" viewBox="0 0 24 24"><path d="M12 2c-4.2 0-8 3.22-8 8.2 0 3.18 2.45 6.92 7.34 11.23.38.33.95.33 1.33 0C17.55 17.12 20 13.38 20 10.2 20 5.22 16.2 2 12 2zm0 10c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></symbol>
   <symbol id="i-menu" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></symbol>
+  <symbol id="i-sheet" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 7h4v4H7V7zm6 0h4v4h-4V7zM7 13h4v4H7v-4zm6 0h4v4h-4v-4z"/></symbol>
+  <symbol id="i-sheet-color" viewBox="0 0 44 58">
+    <path d="M4 0h24l16 16v38a4 4 0 0 1-4 4H4a4 4 0 0 1-4-4V4a4 4 0 0 1 4-4z" fill="#23A566"/>
+    <path d="M28 0l16 16H32a4 4 0 0 1-4-4z" fill="#8ad4ae"/>
+    <rect x="10" y="26" width="24" height="20" rx="2" fill="#fff"/>
+    <g stroke="#23A566" stroke-width="2"><line x1="10" y1="33" x2="34" y2="33"/><line x1="10" y1="39.5" x2="34" y2="39.5"/><line x1="18" y1="26" x2="18" y2="46"/></g>
+  </symbol>
+  <symbol id="i-maps-color" viewBox="0 0 42 58">
+    <path d="M21 2C10.5 2 3 10 3 19.5c0 4.2 1.6 8 4 11.6L21 54 35 31.1c2.4-3.6 4-7.4 4-11.6C39 10 31.5 2 21 2z" fill="#EA4335"/>
+    <path d="M7 31.1C4.6 27.5 3 23.7 3 19.5 3 14.6 5 10.2 8.2 7l9.6 11.4z" fill="#FBBC04"/>
+    <path d="M8.2 7C11.3 3.9 15.8 2 21 2c4.4 0 8.3 1.4 11.3 3.7L21 19z" fill="#4285F4" opacity=".95"/>
+    <path d="M21 54L7 31.1c1.5 2.3 4.6 4.3 7.4 4.8z" fill="#34A853"/>
+    <circle cx="21" cy="19.5" r="7" fill="#fff"/>
+    <circle cx="21" cy="19.5" r="4.2" fill="#B31412" opacity=".9"/>
+  </symbol>
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></symbol>
 </svg>
 
@@ -462,7 +531,7 @@
       <a class="nav-link" href="#about">About</a>
       <a class="nav-link" href="#features">Features</a>
       <a class="nav-link" href="#contact">Contact</a>
-      <a class="btn btn-filled" data-config="whatsapp" href="https://wa.me/919539506502?text=Hi%2C%20I%27m%20interested%20in%20Full%20Star%20QR" target="_blank" rel="noopener">Get Started</a>
+      <a class="btn btn-filled" data-config="whatsapp" href="https://wa.me/919605798763?text=Hi%2C%20I%27m%20interested%20in%20Full%20Star%20QR" target="_blank" rel="noopener">Get Started</a>
     </nav>
     <button class="menu-btn" id="menu-btn" type="button" aria-label="Open Menu" aria-expanded="false" aria-controls="mobile-menu">
       <svg aria-hidden="true"><use id="menu-icon" href="#i-menu"/></svg>
@@ -473,7 +542,7 @@
     <a href="#about">About</a>
     <a href="#features">Features</a>
     <a href="#contact">Contact</a>
-    <a class="btn btn-filled" data-config="whatsapp" href="https://wa.me/919539506502?text=Hi%2C%20I%27m%20interested%20in%20Full%20Star%20QR" target="_blank" rel="noopener">Get Started</a>
+    <a class="btn btn-filled" data-config="whatsapp" href="https://wa.me/919605798763?text=Hi%2C%20I%27m%20interested%20in%20Full%20Star%20QR" target="_blank" rel="noopener">Get Started</a>
   </nav>
 </header>
 
@@ -482,13 +551,13 @@
     <div class="hero-inner">
       <div class="hero-text">
         <p class="eyebrow">CUSTOMER FEEDBACK</p>
-        <h1 id="hero-title">Every Scan Tells a Story.</h1>
-        <p class="hero-sub">Put a Full Star QR on your counter. Customers scan, rate and share their experience in seconds. No app needed.</p>
+        <h1 id="hero-title">Turn Every Scan into a Google Review Opportunity.</h1>
+        <p class="hero-sub">Collect feedback, encourage Google reviews, and build a stronger online reputation for your business.</p>
         <div class="hero-actions">
-          <a class="btn btn-filled" data-config="whatsapp" href="https://wa.me/919539506502?text=Hi%2C%20I%27m%20interested%20in%20Full%20Star%20QR" target="_blank" rel="noopener">Get Started</a>
+          <a class="btn btn-filled" data-config="whatsapp" href="https://wa.me/919605798763?text=Hi%2C%20I%27m%20interested%20in%20Full%20Star%20QR" target="_blank" rel="noopener">Get Started</a>
           <a class="btn btn-outlined" href="#features">How It Works</a>
         </div>
-        <p class="trust"><svg aria-hidden="true"><use href="#i-check-circle"/></svg><span>Zero app installs • Instant setup • 1-5 star ratings</span></p>
+        <p class="trust"><svg aria-hidden="true"><use href="#i-check-circle"/></svg><span>More Google reviews • Higher trust • Better visibility</span></p>
       </div>
       <div class="hero-visual">
         <div class="float">
@@ -539,29 +608,62 @@
   <section class="band" id="features" aria-labelledby="features-title">
     <div class="band-inner">
       <div class="section-title">
-        <p class="section-label">Simple 3-Step Process</p>
+        <p class="section-label">How It Works</p>
         <div class="sparkle-divider" aria-hidden="true"><svg><use href="#i-sparkle"/></svg></div>
-        <h2 id="features-title">How It Works</h2>
-        <p class="section-sub">Turn in-person visits into five-star reviews effortlessly with zero friction.</p>
+        <h2 id="features-title">Turn Customer Feedback into More Google Reviews</h2>
+        <p class="section-sub">A simple QR solution for your shop that collects customer feedback and makes it easy for customers to share their experience.</p>
       </div>
-      <ol class="steps">
-        <li class="step">
+      <ol class="steps steps-v2">
+        <li class="step step-v2">
           <div class="step-number" aria-hidden="true">1</div>
-          <div class="step-icon" aria-hidden="true"><svg><use href="#i-qr"/></svg></div>
-          <h3>Scan</h3>
-          <p>Customers scan the QR on your stand with their phone camera.</p>
+          <div class="step-illustration">
+            <div class="illustration-photo-card">
+              <picture>
+                <source type="image/webp" srcset="/assets/qr-stand-photo-600.webp 600w, /assets/qr-stand-photo-1200.webp 1200w" sizes="190px">
+                <img src="/assets/qr-stand-photo-600.png" srcset="/assets/qr-stand-photo-600.png 600w, /assets/qr-stand-photo-1200.png 1200w" sizes="190px" width="1200" height="950" loading="lazy" alt="Full Star QR counter stand with scannable QR code">
+              </picture>
+            </div>
+          </div>
+          <h3>Scan the QR Code</h3>
+          <p>Customers scan your shop's unique QR code using their smartphone camera.</p>
         </li>
-        <li class="step">
+        <li class="step step-v2">
           <div class="step-number" aria-hidden="true">2</div>
-          <div class="step-icon" aria-hidden="true"><svg><use href="#i-star-rate"/></svg></div>
-          <h3>Rate</h3>
-          <p>They give 1 to 5 stars in a few taps.</p>
+          <div class="step-illustration">
+            <div class="phone-illustration" aria-hidden="true">
+              <div class="phone-glow"></div>
+              <div class="mini-phone">
+                <div class="mini-phone-notch"></div>
+                <div class="mini-phone-title">Your Feedback</div>
+                <div class="mini-stars"><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star-border"/></svg></div>
+                <div class="mini-input"><span>Share your feedback...</span></div>
+                <div class="mini-submit">Submit</div>
+              </div>
+            </div>
+          </div>
+          <h3>Give a Rating &amp; Feedback</h3>
+          <p>Customers rate your service from 1 to 5 stars and can submit their feedback.</p>
         </li>
-        <li class="step">
+        <li class="step step-v2">
           <div class="step-number" aria-hidden="true">3</div>
-          <div class="step-icon" aria-hidden="true"><svg><use href="#i-chat"/></svg></div>
-          <h3>Share</h3>
-          <p id="share-step">They can post a Google review in a few taps.</p>
+          <div class="info-blocks">
+            <div class="info-block">
+              <div class="info-text">
+                <div class="info-heading"><span class="info-star" aria-hidden="true"><svg><use href="#i-star"/></svg></span>1 – 3 Stars</div>
+                <p>Feedback is saved in your private Google Sheet, visible only to the shop owner.</p>
+              </div>
+              <span class="info-icon-color" aria-hidden="true"><svg><use href="#i-sheet-color"/></svg></span>
+            </div>
+            <div class="info-block">
+              <div class="info-text">
+                <div class="info-heading"><span class="info-star" aria-hidden="true"><svg><use href="#i-star"/></svg></span>4 – 5 Stars</div>
+                <p>Customers are provided with an option to visit Google Maps and share their public review.</p>
+              </div>
+              <span class="info-icon-color" aria-hidden="true"><svg><use href="#i-maps-color"/></svg></span>
+            </div>
+          </div>
+          <h3>Smart &amp; Automatic</h3>
+          <p>Feedback is collected automatically, helping shop owners understand customer experiences and improve their services.</p>
         </li>
       </ol>
     </div>
@@ -586,7 +688,7 @@
           <li class="tick"><span class="tick-mark" aria-hidden="true"><svg><use href="#i-check"/></svg></span>Branded stand for your shop</li>
           <li class="tick"><span class="tick-mark" aria-hidden="true"><svg><use href="#i-check"/></svg></span>Ratings and feedback in one place</li>
         </ul>
-        <a class="btn btn-filled" data-config="whatsapp" href="https://wa.me/919539506502?text=Hi%2C%20I%27m%20interested%20in%20Full%20Star%20QR" target="_blank" rel="noopener">Get Started</a>
+        <a class="btn btn-filled" data-config="whatsapp" href="https://wa.me/919605798763?text=Hi%2C%20I%27m%20interested%20in%20Full%20Star%20QR" target="_blank" rel="noopener">Get Started</a>
       </div>
     </div>
   </section>
@@ -600,16 +702,16 @@
         <p class="section-sub">Tell us about your shop and we'll set up your stand.</p>
       </div>
       <div class="contact-card">
-        <a class="contact-item" data-config="phone" href="tel:+919539506502">
+        <a class="contact-item" data-config="phone" href="tel:+919605798763">
           <span class="contact-icon" aria-hidden="true"><svg><use href="#i-phone"/></svg></span>
           <span class="contact-label">PHONE</span>
-          <span class="contact-value">+91 95395 06502</span>
+          <span class="contact-value">+91 96057 98763</span>
         </a>
         <div class="contact-sep"></div>
-        <a class="contact-item" data-config="email" href="mailto:prince@rextechstudios.com">
+        <a class="contact-item" data-config="email" href="mailto:fullstarqr@gmail.com">
           <span class="contact-icon" aria-hidden="true"><svg><use href="#i-email"/></svg></span>
           <span class="contact-label">EMAIL</span>
-          <span class="contact-value">prince@rextechstudios.com</span>
+          <span class="contact-value">fullstarqr@gmail.com</span>
         </a>
         <div class="contact-sep"></div>
         <div class="contact-item" data-config="location">
@@ -645,7 +747,6 @@
     email.href = 'mailto:' + CONTACT_EMAIL;
     email.querySelector('.contact-value').textContent = CONTACT_EMAIL;
     document.querySelector('[data-config="location"] .contact-value').textContent = CONTACT_LOCATION;
-    document.getElementById('share-step').textContent = COPY.shareStep;
     document.getElementById('phone-secondary').textContent = COPY.phoneSecondaryButton;
 
     function addFooterLinks(links) {

@@ -23,4 +23,13 @@ class AppConfig {
       : '$publicOrigin/#/review/$shopId';
 
   static bool isAdmin(String? uid) => uid == adminUid;
+
+  /// Local testing only: `flutter run --dart-define=USE_EMULATOR=true` points
+  /// the app at the Firebase emulators instead of the live project. It is a
+  /// compile-time constant that defaults to false, and the release build
+  /// (deploy.ps1) never sets it, so a deployed build can't use it.
+  static const bool useEmulator = bool.fromEnvironment('USE_EMULATOR');
+  static const String emulatorHost = 'localhost';
+  static const int authEmulatorPort = 9099;
+  static const int firestoreEmulatorPort = 8089;
 }

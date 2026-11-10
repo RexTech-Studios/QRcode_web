@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-enum DashboardTab { generateQr, myQrCodes, shops, analytics, settings }
+enum DashboardTab { generateQr, myQrCodes, shops, analytics, salesTeam, settings }
 
 class NavigationProvider extends ChangeNotifier {
   DashboardTab _current = DashboardTab.generateQr;

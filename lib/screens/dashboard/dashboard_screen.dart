@@ -8,6 +8,7 @@ import '../../widgets/top_bar.dart';
 import '../analytics/analytics_screen.dart';
 import '../generate_qr/generate_qr_screen.dart';
 import '../my_qr_codes/my_qr_codes_screen.dart';
+import '../sales/sales_team_screen.dart';
 import '../settings/settings_screen.dart';
 import '../shops/shops_screen.dart';
 
@@ -25,6 +26,7 @@ class DashboardScreen extends StatelessWidget {
         MyQrCodesScreen(),
         ShopsScreen(),
         AnalyticsScreen(),
+        SalesTeamScreen(),
         SettingsScreen(),
       ],
     );

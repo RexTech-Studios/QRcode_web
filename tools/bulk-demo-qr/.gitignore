@@ -1,0 +1,8 @@
+# Generated output: print sheets, previews, screenshots and the batch record.
+# The scripts that make them are what belongs in git.
+node_modules/
+*.pdf
+*.png
+exact-cells/
+grid-cells/
+demo-qr-state.json

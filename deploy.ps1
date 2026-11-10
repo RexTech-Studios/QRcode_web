@@ -43,7 +43,7 @@ if ($worker -notmatch 'FULL-STAR-QR-KILL-SWITCH') {
 $problems = New-Object System.Collections.ArrayList
 $textExtensions = '.html', '.css', '.js', '.json', '.txt', '.xml', '.svg'
 $codeExtensions = '.html', '.css', '.js'
-$allowedHosts = 'fullstarqr.com', 'wa.me', 'www.w3.org'
+$allowedHosts = 'fullstarqr.com', 'wa.me', 'www.w3.org', 'www.facebook.com', 'www.instagram.com', 'www.youtube.com'
 $bannedText = 'TODO-COPY', 'example\.com', 'lorem', 'admin@fullstarqr\.com'
 
 $landingFiles = Get-ChildItem -LiteralPath 'landing' -Recurse -File

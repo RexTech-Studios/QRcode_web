@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/navigation_provider.dart';
+import '../services/auth_service.dart';
 import '../utils/app_colors.dart';
 
 class Sidebar extends StatelessWidget {
@@ -92,6 +93,12 @@ class Sidebar extends StatelessWidget {
                           onTap: () => goTo(DashboardTab.analytics),
                         ),
                         _NavItem(
+                          icon: Icons.groups_rounded,
+                          label: 'Sales Team',
+                          selected: nav.current == DashboardTab.salesTeam,
+                          onTap: () => goTo(DashboardTab.salesTeam),
+                        ),
+                        _NavItem(
                           icon: Icons.settings_rounded,
                           label: 'Settings',
                           selected: nav.current == DashboardTab.settings,
@@ -102,10 +109,23 @@ class Sidebar extends StatelessWidget {
                   ),
                   const Spacer(),
                   Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 4),
+                    child: _NavItem(
+                      icon: Icons.logout_rounded,
+                      label: 'Logout',
+                      selected: false,
+                      onTap: () {
+                        if (scaffold?.isDrawerOpen ?? false) {
+                          scaffold!.closeDrawer();
+                        }
+                        AuthService.signOut();
+                      },
+                    ),
+                  ),
+                  Padding(
                     padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
                     child: _LocalStorageCard(),
                   ),
-
                 ],
               ),
             ),

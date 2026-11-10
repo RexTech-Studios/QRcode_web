@@ -18,7 +18,6 @@ test('static markup matches the config block', () => {
   assert.ok(body.includes(`>${config.CONTACT_EMAIL}<`));
   assert.ok(body.includes(`href="mailto:${config.CONTACT_EMAIL}"`));
   assert.ok(body.includes(`>${config.CONTACT_LOCATION}<`));
-  assert.ok(body.includes(`>${config.COPY.shareStep}<`));
   assert.ok(body.includes(`>${config.COPY.phoneSecondaryButton}<`));
   const whatsapp = [...body.matchAll(/href="(https:\/\/wa\.me[^"]*)"/g)].map((m) => m[1]);
   assert.equal(whatsapp.length, 4);
@@ -28,15 +27,16 @@ test('static markup matches the config block', () => {
 test('the private-feedback claim is off, and its wording is kept behind the flag', () => {
   assert.equal(config.CLAIM_PRIVATE_FEEDBACK, false);
   assert.ok(!body.toLowerCase().includes('private feedback'));
-  assert.ok(html.includes('They can post a Google review or send private feedback.'));
   assert.ok(html.includes("'Send Private Feedback'"));
 });
 
-test('legal and social links are off and have no placeholder URLs', () => {
+test('legal links are off and have no placeholder URLs; social links are on with real URLs', () => {
   assert.equal(config.SHOW_LEGAL_LINKS, false);
-  assert.equal(config.SHOW_SOCIAL_LINKS, false);
-  for (const link of [...config.LEGAL_LINKS, ...config.SOCIAL_LINKS]) assert.equal(link.url, '');
+  for (const link of config.LEGAL_LINKS) assert.equal(link.url, '');
   assert.ok(!body.includes('Privacy Policy'));
+
+  assert.equal(config.SHOW_SOCIAL_LINKS, true);
+  for (const link of config.SOCIAL_LINKS) assert.ok(link.url.startsWith('https://'), link.title);
 });
 
 test('exactly one h1, and the required section ids exist', () => {
@@ -73,6 +73,6 @@ test('there is no visible link to the app', () => {
 
 test('every external URL is an allowed host', () => {
   for (const [url] of html.matchAll(/https?:\/\/[^\s"'`)<]+/g)) {
-    assert.match(url, /^https:\/\/(fullstarqr\.com|wa\.me)(\/|$)/, url);
+    assert.match(url, /^https:\/\/(fullstarqr\.com|wa\.me|www\.facebook\.com|www\.instagram\.com|www\.youtube\.com)(\/|$)/, url);
   }
 });

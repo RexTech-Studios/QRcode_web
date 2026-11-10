@@ -7,10 +7,12 @@ import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../models/assignment_model.dart';
 import '../../models/qr_code_model.dart';
 import '../../models/shop_model.dart';
 import '../../providers/navigation_provider.dart';
 import '../../providers/qr_provider.dart';
+import '../../providers/sales_admin_provider.dart';
 import '../../providers/shop_provider.dart';
 import '../../services/download_helper.dart';
 import '../../utils/app_colors.dart';
@@ -19,16 +21,61 @@ import '../../widgets/coming_soon_placeholder.dart';
 import '../../widgets/qr_style_selector.dart';
 import '../../widgets/section_card.dart';
 
-class MyQrCodesScreen extends StatelessWidget {
+class MyQrCodesScreen extends StatefulWidget {
   const MyQrCodesScreen({super.key});
 
   @override
+  State<MyQrCodesScreen> createState() => _MyQrCodesScreenState();
+}
+
+class _MyQrCodesScreenState extends State<MyQrCodesScreen> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// Matches the QR number ("296" or "QR296"), the shop name or the label.
+  /// Exact QR-number matches are listed first.
+  List<QRCodeModel> _filter(
+    List<QRCodeModel> qrCodes,
+    Map<String, ShopModel> shopsById,
+    SalesAdminProvider sales,
+  ) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return qrCodes;
+    final exactCode = RegExp(r'^\d+$').hasMatch(q) ? 'qr$q' : q;
+    bool matches(QRCodeModel qr) {
+      final shopName = shopsById[qr.shopId]?.shopName.toLowerCase() ?? '';
+      final holder =
+          sales.assignmentFor(qr.shopId)?.assignedToName.toLowerCase() ?? '';
+      return qr.qrCode.toLowerCase().contains(q) ||
+          shopName.contains(q) ||
+          holder.contains(q) ||
+          qr.qrLabel.toLowerCase().contains(q);
+    }
+
+    final results = qrCodes.where(matches).toList();
+    results.sort((a, b) {
+      final aExact = a.qrCode.toLowerCase() == exactCode ? 0 : 1;
+      final bExact = b.qrCode.toLowerCase() == exactCode ? 0 : 1;
+      return aExact.compareTo(bExact);
+    });
+    return results;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final qrCodes = context.watch<QrProvider>().qrCodes;
+    final allQrCodes = context.watch<QrProvider>().qrCodes;
     final shops = context.watch<ShopProvider>().shops;
     final shopsById = {for (final s in shops) s.shopId: s};
+    final sales = context.watch<SalesAdminProvider>();
+    final qrCodes = _filter(allQrCodes, shopsById, sales);
 
-    if (qrCodes.isEmpty) {
+    if (allQrCodes.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -67,39 +114,83 @@ class MyQrCodesScreen extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '${qrCodes.length} saved QR code${qrCodes.length == 1 ? '' : 's'}.',
+            _query.trim().isEmpty
+                ? '${allQrCodes.length} saved QR code${allQrCodes.length == 1 ? '' : 's'}.'
+                : '${qrCodes.length} of ${allQrCodes.length} QR codes match.',
             style: const TextStyle(
               fontSize: 14.5,
               color: AppColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 24),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final crossAxisCount = constraints.maxWidth > 1300
-                  ? 4
-                  : constraints.maxWidth > 980
-                  ? 3
-                  : constraints.maxWidth > 640
-                  ? 2
-                  : 1;
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: qrCodes.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  mainAxisSpacing: 20,
-                  crossAxisSpacing: 20,
-                  mainAxisExtent: 420,
-                ),
-                itemBuilder: (context, index) {
-                  final qr = qrCodes[index];
-                  return _QrCodeCard(qr: qr, shop: shopsById[qr.shopId]);
-                },
-              );
-            },
+          const SizedBox(height: 16),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) => setState(() => _query = value),
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText:
+                    'Search by QR number (e.g. QR296), shop name or label',
+                prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear search',
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                      ),
+              ),
+            ),
           ),
+          const SizedBox(height: 24),
+          if (qrCodes.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(
+                child: Text(
+                  'No QR codes match your search.',
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final crossAxisCount = constraints.maxWidth > 1300
+                    ? 4
+                    : constraints.maxWidth > 980
+                    ? 3
+                    : constraints.maxWidth > 640
+                    ? 2
+                    : 1;
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: qrCodes.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    mainAxisSpacing: 20,
+                    crossAxisSpacing: 20,
+                    mainAxisExtent: 440,
+                  ),
+                  itemBuilder: (context, index) {
+                    final qr = qrCodes[index];
+                    return _QrCodeCard(
+                      qr: qr,
+                      shop: shopsById[qr.shopId],
+                      assignment: sales.assignmentFor(qr.shopId),
+                    );
+                  },
+                );
+              },
+            ),
         ],
       ),
     );
@@ -113,13 +204,24 @@ class MyQrCodesScreen extends StatelessWidget {
 class _QrCodeCard extends StatelessWidget {
   final QRCodeModel qr;
   final ShopModel? shop;
+  final Assignment? assignment;
 
-  const _QrCodeCard({required this.qr, required this.shop});
+  const _QrCodeCard({required this.qr, required this.shop, this.assignment});
 
   String _formatDate(DateTime date) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
@@ -128,7 +230,8 @@ class _QrCodeCard extends StatelessWidget {
     final url = shop?.googleSheetsUrl;
     if (url == null || url.isEmpty) return;
     final uri = Uri.tryParse(url);
-    if (uri == null || !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+    if (uri == null ||
+        !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not open the Google Sheet.')),
@@ -168,9 +271,10 @@ class _QrCodeCard extends StatelessWidget {
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     if (byteData == null) return;
     final bytes = byteData.buffer.asUint8List();
-    final safeName = (shop?.shopName ?? 'reviewqr')
-        .trim()
-        .replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '_');
+    final safeName = (shop?.shopName ?? 'reviewqr').trim().replaceAll(
+      RegExp(r'[^a-zA-Z0-9]+'),
+      '_',
+    );
     downloadBytes(bytes, '${safeName}_qr_code.png');
   }
 
@@ -208,9 +312,8 @@ class _QrCodeCard extends StatelessWidget {
     try {
       await context.read<QrProvider>().deleteQrCode(qr.qrId);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('QR code deleted.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('QR code deleted.')));
       }
     } catch (_) {
       if (context.mounted) {
@@ -275,7 +378,10 @@ class _QrCodeCard extends StatelessWidget {
             Align(
               alignment: Alignment.center,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.primarySoft,
                   borderRadius: BorderRadius.circular(6),
@@ -321,16 +427,38 @@ class _QrCodeCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               'Updated ${_formatDate(qr.updatedAt!)}',
-              style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+              style: const TextStyle(
+                fontSize: 11.5,
+                color: AppColors.textMuted,
+              ),
             ),
           ],
-          if (shop?.googleSheetsUrl != null && shop!.googleSheetsUrl!.isNotEmpty) ...[
+          if (assignment != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              assignment!.isSold
+                  ? 'Sold by ${assignment!.assignedToName} on ${_formatDate(assignment!.soldAt!)}'
+                  : 'Assigned to ${assignment!.assignedToName}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+            ),
+          ],
+          if (shop?.googleSheetsUrl != null &&
+              shop!.googleSheetsUrl!.isNotEmpty) ...[
             const SizedBox(height: 10),
             InkWell(
               onTap: () => _openSheet(context),
               borderRadius: BorderRadius.circular(6),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFE8F5E9),
                   borderRadius: BorderRadius.circular(6),
@@ -339,7 +467,11 @@ class _QrCodeCard extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: const [
-                    Icon(Icons.table_chart_outlined, size: 14, color: Color(0xFF2E7D32)),
+                    Icon(
+                      Icons.table_chart_outlined,
+                      size: 14,
+                      color: Color(0xFF2E7D32),
+                    ),
                     SizedBox(width: 5),
                     Text(
                       'View Google Sheet',
@@ -498,8 +630,11 @@ class _GenerateSheetButtonState extends State<_GenerateSheetButton> {
                 ),
               )
             else
-              const Icon(Icons.add_chart_outlined,
-                  size: 14, color: Color(0xFFE65100)),
+              const Icon(
+                Icons.add_chart_outlined,
+                size: 14,
+                color: Color(0xFFE65100),
+              ),
             const SizedBox(width: 5),
             Text(
               _busy ? 'Generating...' : 'Generate Sheet',
@@ -548,7 +683,9 @@ class _EditQrModalState extends State<_EditQrModal> {
       text: widget.shop?.googleReviewUrl ?? '',
     );
     _labelCtrl = TextEditingController(text: widget.qr.qrLabel);
-    _sheetsUrlCtrl = TextEditingController(text: widget.shop?.googleSheetsUrl ?? '');
+    _sheetsUrlCtrl = TextEditingController(
+      text: widget.shop?.googleSheetsUrl ?? '',
+    );
     _selectedStyle = widget.qr.qrStyle;
   }
 
@@ -591,7 +728,9 @@ class _EditQrModalState extends State<_EditQrModal> {
         googleReviewUrl: _reviewUrlCtrl.text,
         preferredShopId: widget.shop?.shopId,
         editingShopId: widget.shop?.shopId,
-        googleSheetsUrl: _sheetsUrlCtrl.text.trim().isEmpty ? null : _sheetsUrlCtrl.text.trim(),
+        googleSheetsUrl: _sheetsUrlCtrl.text.trim().isEmpty
+            ? null
+            : _sheetsUrlCtrl.text.trim(),
       );
 
       // Update the QR record (same qrId, same shopId — no duplicate).
@@ -630,8 +769,7 @@ class _EditQrModalState extends State<_EditQrModal> {
     }
   }
 
-  bool get _isUrlValid =>
-      Validators.isValidGoogleMapsUrl(_reviewUrlCtrl.text);
+  bool get _isUrlValid => Validators.isValidGoogleMapsUrl(_reviewUrlCtrl.text);
 
   @override
   Widget build(BuildContext context) {
@@ -723,8 +861,10 @@ class _EditQrModalState extends State<_EditQrModal> {
               // Label pill under preview
               Center(
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(8),
@@ -781,8 +921,8 @@ class _EditQrModalState extends State<_EditQrModal> {
                       color: !urlHasText
                           ? AppColors.border
                           : (_isUrlValid
-                              ? AppColors.primary
-                              : AppColors.danger),
+                                ? AppColors.primary
+                                : AppColors.danger),
                       width: !urlHasText ? 1 : 1.5,
                     ),
                   ),
@@ -835,7 +975,11 @@ class _EditQrModalState extends State<_EditQrModal> {
               const SizedBox(height: 6),
               const Text(
                 'Paste the link to this shop\'s Google Sheet. A "View Google Sheet" button will appear on the QR card.',
-                style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary, height: 1.4),
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                ),
               ),
               const SizedBox(height: 18),
 

@@ -1,13 +1,25 @@
 rules_version = '2';
 
-// Anonymous customers can read one shop by id and create feedback. Everything
-// else belongs to the single admin. The app's login screen only hides UI;
-// these rules are what actually protects the data.
+// Anonymous customers can read one shop by id and create feedback. The single
+// admin (a hard-coded uid) can do everything. A sales person is a Firebase
+// Auth account that also has an active `users/{uid}` doc, which only the admin
+// can create. Sales people can see only the QR codes the admin assigned to
+// them, and can edit each one once: saving locks it until the admin unlocks
+// it. They can also issue the invoice for a QR they have set up, at the price
+// the admin chose. The app's login screen only hides UI; these rules are what actually
+// protects the data.
 service cloud.firestore {
   match /databases/{database}/documents {
     function isAdmin() {
       return request.auth != null
         && request.auth.uid == '7HVKqxlkuiafMK6XVL9SOmGieph2';
+    }
+
+    function isSales() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'sales'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
     }
 
     // emailNotificationStatus is no longer used, but old cached clients still
@@ -25,10 +37,127 @@ service cloud.firestore {
         && data.createdAt == request.time;
     }
 
+    // Customers are sent to this link after a 4-5 star rating, so a sales
+    // person may only save an https link on a Google host. This mirrors
+    // Validators.isSafeReviewRedirect in the app.
+    function isSafeReviewUrl(url) {
+      return url is string
+        && url.size() <= 2000
+        && url.lower().matches('^https://([a-z0-9-]+\\.)*(g\\.page|goo\\.gl|google\\.com)(/[^\\s]*)?$');
+    }
+
+    // A sales person may edit a shop's name and review link only if the shop
+    // is assigned to them and still unlocked, and the same batch locks the
+    // assignment (getAfter sees the state the batch will leave behind).
+    function salesMayEditShop(shopId) {
+      let assignment = /databases/$(database)/documents/assignments/$(shopId);
+      return exists(assignment)
+        && get(assignment).data.assignedTo == request.auth.uid
+        && get(assignment).data.locked == false
+        && getAfter(assignment).data.locked == true
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['shopName', 'googleReviewUrl'])
+        && request.resource.data.shopName is string
+        && request.resource.data.shopName.size() > 0
+        && request.resource.data.shopName.size() <= 100
+        && isSafeReviewUrl(request.resource.data.googleReviewUrl);
+    }
+
+    // A sales person may attach a Google Sheet to a shop that has none yet, as
+    // long as the QR is theirs. It is the only thing this rule lets them change,
+    // it can only be added (never replaced), and it must look like a Google
+    // Sheets link. This mirrors RepProvider.isSafeSheetUrl in the app.
+    function salesMayAddSheet(shopId) {
+      let assignment = /databases/$(database)/documents/assignments/$(shopId);
+      return exists(assignment)
+        && get(assignment).data.assignedTo == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['googleSheetsUrl'])
+        && (!('googleSheetsUrl' in resource.data)
+            || resource.data.googleSheetsUrl == null
+            || resource.data.googleSheetsUrl == '')
+        && request.resource.data.googleSheetsUrl is string
+        && request.resource.data.googleSheetsUrl.size() <= 300
+        && request.resource.data.googleSheetsUrl.matches('^https://docs\\.google\\.com/spreadsheets/d/[A-Za-z0-9_-]+(/[^\\s]*)?$');
+    }
+
+    // The only change a sales person can make to an assignment is locking it
+    // after their edit. soldAt is set once, by the server clock, and never
+    // changes after that.
+    function salesMayLockAssignment() {
+      let before = resource.data;
+      let after = request.resource.data;
+      return before.assignedTo == request.auth.uid
+        && before.locked == false
+        && after.locked == true
+        && after.diff(before).affectedKeys().hasOnly(['locked', 'lastEditedAt', 'soldAt'])
+        && after.lastEditedAt == request.time
+        && (after.soldAt == before.soldAt
+            || (before.soldAt == null && after.soldAt == request.time));
+    }
+
+    // A sales person may issue the invoice for a QR assigned to them, once the
+    // QR has been set up for a client (soldAt is set). The price is the one
+    // the admin set, never something the sales person types in, and the
+    // invoice number must be the one the same transaction takes from the
+    // counter. getAfter sees the state the transaction will leave behind.
+    function salesMayInvoice(shopId) {
+      let assignment = /databases/$(database)/documents/assignments/$(shopId);
+      let counter = /databases/$(database)/documents/counters/invoices;
+      let price = /databases/$(database)/documents/settings/invoice;
+      let inv = request.resource.data;
+      return exists(assignment)
+        && exists(price)
+        && get(assignment).data.assignedTo == request.auth.uid
+        && get(assignment).data.soldAt != null
+        && inv.keys().hasOnly(['shopId', 'number', 'qrCode', 'clientName', 'clientPhone',
+             'clientAddress', 'amount', 'issuedAt', 'soldAt', 'soldByName', 'soldByUid',
+             'createdByUid', 'createdByName'])
+        && inv.keys().hasAll(['shopId', 'number', 'qrCode', 'clientName', 'clientPhone',
+             'clientAddress', 'amount', 'issuedAt', 'soldAt', 'soldByName', 'soldByUid',
+             'createdByUid', 'createdByName'])
+        && inv.shopId == shopId
+        && inv.qrCode == get(assignment).data.qrCode
+        && inv.soldAt == get(assignment).data.soldAt
+        && inv.soldByName == get(assignment).data.assignedToName
+        && inv.soldByUid == request.auth.uid
+        && inv.createdByUid == request.auth.uid
+        && inv.createdByName is string
+        && inv.createdByName.size() <= 100
+        && inv.issuedAt == request.time
+        && inv.number is int
+        && inv.number == getAfter(counter).data.last
+        && getAfter(counter).data.lastShopId == shopId
+        && inv.clientName is string
+        && inv.clientName.size() > 0
+        && inv.clientName.size() <= 100
+        && inv.clientPhone is string
+        && inv.clientPhone.size() <= 20
+        && inv.clientAddress is string
+        && inv.clientAddress.size() <= 200
+        && inv.amount is int
+        && inv.amount > 0
+        && inv.amount == get(price).data.pricePerQr;
+    }
+
+    // The invoice counter may only move up by exactly one, and only in the same
+    // transaction that creates the invoice with that number. That way a
+    // number can never be used up without an invoice, or used twice.
+    function salesMayTakeNextNumber() {
+      let after = request.resource.data;
+      let invoice = /databases/$(database)/documents/invoices/$(after.lastShopId);
+      return after.keys().hasOnly(['last', 'lastShopId'])
+        && after.last is int
+        && after.lastShopId is string
+        && !exists(invoice)
+        && existsAfter(invoice)
+        && getAfter(invoice).data.number == after.last;
+    }
+
     // `get` only: `list` would let anyone enumerate every shop.
     match /shops/{shopId} {
       allow get: if true;
       allow list, write: if isAdmin();
+      allow update: if isSales() && salesMayEditShop(shopId);
+      allow update: if isSales() && salesMayAddSheet(shopId);
     }
 
     match /qr_codes/{qrId} {
@@ -38,6 +167,50 @@ service cloud.firestore {
     match /feedback/{feedbackId} {
       allow create: if isValidFeedback();
       allow read, update, delete: if isAdmin();
+    }
+
+    // Sales people. A signed-in user can read only their own doc, so the app
+    // can tell what role they have. Only the admin can create or change one.
+    match /users/{uid} {
+      allow get: if isAdmin() || (request.auth != null && request.auth.uid == uid);
+      allow list, write: if isAdmin();
+    }
+
+    // One doc per assigned shop, keyed by shopId. A sales person can list
+    // only their own (the query must filter on assignedTo == their uid).
+    match /assignments/{shopId} {
+      allow get, list: if isAdmin()
+        || (isSales() && resource.data.assignedTo == request.auth.uid);
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (isSales() && salesMayLockAssignment());
+    }
+
+    // Invoices: one per QR, keyed by shopId. A sales person can read only the
+    // ones for their own QR codes (the query must filter on soldByUid) and
+    // create one for a QR they sold. Nobody but the admin changes or deletes.
+    match /invoices/{shopId} {
+      // `resource == null` lets the invoice transaction ask "is there one yet?"
+      // for a QR that has none. A list query always has a resource.
+      // An old invoice with no soldByUid simply isn't theirs to read.
+      allow get: if isSales()
+        && (resource == null
+            || ('soldByUid' in resource.data && resource.data.soldByUid == request.auth.uid));
+      allow list: if isSales()
+        && 'soldByUid' in resource.data && resource.data.soldByUid == request.auth.uid;
+      allow create: if isSales() && salesMayInvoice(shopId);
+    }
+
+    match /counters/invoices {
+      allow get: if isSales();
+      allow create: if isSales() && salesMayTakeNextNumber()
+        && request.resource.data.last == 1;
+      allow update: if isSales() && salesMayTakeNextNumber()
+        && request.resource.data.last == resource.data.last + 1;
+    }
+
+    // The fixed price per QR. A sales person can read it, never change it.
+    match /settings/invoice {
+      allow get: if isSales();
     }
 
     match /{document=**} {

@@ -1,9 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+
 import '../firebase_options.dart';
 import '../models/shop_model.dart';
 import '../models/qr_code_model.dart';
+import '../utils/app_config.dart';
 
 /// Wraps Firestore access. Designed to fail soft: if Firebase has not been
 /// configured with real project credentials yet (see firebase_options.dart),
@@ -19,6 +22,19 @@ class FirebaseService {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
+      if (AppConfig.useEmulator) {
+        FirebaseFirestore.instance.useFirestoreEmulator(
+          AppConfig.emulatorHost,
+          AppConfig.firestoreEmulatorPort,
+        );
+        await FirebaseAuth.instance.useAuthEmulator(
+          AppConfig.emulatorHost,
+          AppConfig.authEmulatorPort,
+        );
+        debugPrint(
+          'FirebaseService: using the LOCAL EMULATORS, not the live project.',
+        );
+      }
       isAvailable = true;
     } catch (e) {
       isAvailable = false;
